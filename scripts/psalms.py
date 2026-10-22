@@ -38,7 +38,7 @@ def load(rows):
         kind, title, hook, kv, msg, author, scene, caution = p[1:]
         if title == "=본편":
             if no not in main:
-                raise SystemExit(f"시편 {no}편은 본편에 없어 재사용할 수 없습니다")
+                raise SystemExit(f"시편 {no}편은 본편에 없어 초안을 가져올 수 없습니다")
             m = main[no]
             ps = dict(no=no, kind=kind, title=m["title"], hook=m["hook"], kv=m["kv"], msg=m["msg"],
                       author=author, scene=m["place"], caution=m["caution"], reuse=m)
@@ -58,14 +58,14 @@ def load(rows):
         dup = sorted({n for n in nums if nums.count(n) > 1})
         raise SystemExit(f"시편 시리즈 누락 {missing} / 중복 {dup} / 순서 확인 필요")
     if {x["no"] for x in out if x["reuse"]} != set(main):
-        raise SystemExit("본편 시편이 시편 시리즈에서 모두 재사용되지 않았습니다")
+        raise SystemExit("본편 시편 중 시편 시리즈와 연결되지 않은 편이 있습니다")
     return out
 
 
 def sheets(wb, psalms, f, header, body, P, STATUS, A):
     n = len(psalms) + 1
     ws = wb.create_sheet("시편_시리즈")
-    cols = ["편", "시편코드", "권", "유형", "제작 구분", "본편 A코드", "제목", "첫 3초 훅", "핵심 구절",
+    cols = ["편", "시편코드", "권", "유형", "제작 구분", "본편 같은 시편", "제목", "첫 3초 훅", "핵심 구절",
             "한 줄 메시지", "저자·표제", "장소·배경", "교리·연출 주의", "회차 표기", "시편 롱폼",
             "유튜브 제목안", "업로드 예정일", "요일", "다음 편 예고", "대본", "교리감수", "영상", "업로드", "비고"]
     header(ws, 1, cols, [5, 8, 7, 10, 18, 9, 20, 30, 10, 32, 24, 22, 32, 10, 8, 40, 11, 5, 26, 8, 8, 8, 8, 16])
@@ -73,8 +73,8 @@ def sheets(wb, psalms, f, header, body, P, STATUS, A):
     for i, ps in enumerate(psalms, 2):
         m = ps["reuse"]
         vals = [ps["no"], f"P{ps['no']:03d}", ps["book"], ps["kind"],
-                f"재사용 (본편 {m['book']['testament']} #{m['track_no']:03d})" if m else "신규 제작",
-                m["code"] if m else "", ps["title"], ps["hook"], ps["kv"], ps["msg"], ps["author"],
+                "신규 제작 (본편과 별도)" if m else "신규 제작",
+                f"{m['code']} (본편 {m['book']['testament']} #{m['track_no']:03d})" if m else "", ps["title"], ps["hook"], ps["kv"], ps["msg"], ps["author"],
                 ps["scene"], ps["caution"]]
         for j, v in enumerate(vals, 1):
             ws.cell(row=i, column=j, value=v)
@@ -100,11 +100,11 @@ def sheets(wb, psalms, f, header, body, P, STATUS, A):
     dv = DataValidation(type="list", formula1=STATUS, allow_blank=True)
     dv.add(f"T2:W{n}")
     ws.add_data_validation(dv)
-    ws.cell(row=1, column=5).comment = Comment("재사용: 본편 영상을 '시편 #' 제목으로 재업로드(초록) / 신규: 새로 제작", "제작표")
+    ws.cell(row=1, column=5).comment = Comment("150편 모두 시편 시리즈용으로 따로 제작. 초록 = 본편에도 같은 시편이 있는 편(기획 초안 공유, 영상은 별도)", "제작표")
     ws.cell(row=1, column=17).comment = Comment("주 3편(화·목·일). 시작일은 안내 시트에서 변경", "제작표")
 
     wl = wb.create_sheet("시편_롱폼")
-    lcols = ["순번", "롱폼코드", "롱폼 제목", "권", "본문 범위", "편수", "그중 신규", "예상 길이(초)",
+    lcols = ["순번", "롱폼코드", "롱폼 제목", "권", "본문 범위", "편수", "본편에도 있는 시편", "예상 길이(초)",
              "예상 길이(분)", "공개 예정일", "요일", "대본", "교리감수", "영상", "업로드", "비고"]
     header(wl, 1, lcols, [6, 9, 30, 12, 16, 6, 8, 9, 9, 11, 5, 8, 8, 8, 8, 16])
     for i, (a, b, title) in enumerate(LONGS, 2):
@@ -114,7 +114,7 @@ def sheets(wb, psalms, f, header, body, P, STATUS, A):
             wl.cell(row=i, column=j, value=v)
         rngO = f"'시편_시리즈'!$O$2:$O${n}"
         wl.cell(row=i, column=6, value=f"=COUNTIF({rngO},B{i})")
-        wl.cell(row=i, column=7, value=f"=COUNTIFS({rngO},B{i},'시편_시리즈'!$E$2:$E${n},\"신규 제작\")")
+        wl.cell(row=i, column=7, value=f"=COUNTIFS({rngO},B{i},'시편_시리즈'!$F$2:$F${n},\"A*\")")
         wl.cell(row=i, column=8, value=f"=F{i}*{P['롱폼에 넣는 A 1편 길이(초)']}+{P['롱폼 인트로+아웃트로+연결(초)']}")
         wl.cell(row=i, column=9, value=f"=ROUND(H{i}/60,1)")
         wl.cell(row=i, column=10, value=f"=_xlfn.MAXIFS('시편_시리즈'!$Q$2:$Q${n},{rngO},B{i})+1")
@@ -137,6 +137,7 @@ def check_items(n, nl, A):
         ("시편 시리즈 편수", f"=COUNT({rngA})", 150),
         ("시편 1~150편이 한 번씩 (번호 합계)", f"=SUM({rngA})", 150 * 151 // 2),
         ("시편 번호 중복", f"=SUMPRODUCT((COUNTIF({rngA},{rngA})>1)*1)", 0),
-        ("시편 재사용 편수 = 본편 시편 편수", f"=COUNTIF('시편_시리즈'!$F$2:$F${n},\"A*\")", f"=COUNTIF({A('I')},\"시편\")"),
+        ("시편 시리즈 제작 편수 (모두 별도 제작)", f"=COUNTIF('시편_시리즈'!$E$2:$E${n},\"신규 제작*\")", 150),
+        ("본편 시편 31편이 시편 시리즈와 연결됨", f"=COUNTIF('시편_시리즈'!$F$2:$F${n},\"A*\")", f"=COUNTIF({A('I')},\"시편\")"),
         ("시편 롱폼에 배정되지 않은 편", f"=COUNT({rngA})-SUMPRODUCT(COUNTIF('시편_시리즈'!$O$2:$O${n},'시편_롱폼'!$B$2:$B${nl}))", 0),
     ]
