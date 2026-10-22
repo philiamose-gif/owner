@@ -141,7 +141,7 @@ def characters(wb, rows, last, f, header, body, title_block, section, table, C_I
         vals = [f"C{i - 1:02d}"] + list(ch[:1]) + [ch[1]] + list(ch[2:])
         for j, v in enumerate(vals, 1):
             ws.cell(row=i, column=j, value=v)
-        ws.cell(row=i, column=11, value=f"=COUNTIF('A타입_제작표'!$N$2:$N${last},\"*\"&C{i}&\"*\")")
+        ws.cell(row=i, column=11, value=f"=COUNTIF('A타입_제작표'!$P$2:$P${last},\"*\"&C{i}&\"*\")")
     n = len(CHARACTERS) + 1
     body(ws, 2, n, len(cols), center_cols=(1, 3, 4, 11))
     for i in range(2, n + 1):
@@ -257,8 +257,8 @@ SEASONS = [
 
 def seasons(wb, rows, f, header, body, title_block):
     ws = wb.create_sheet("절기특집")
-    cols = ["절기", "시기·의미", "추천 A코드", "추천 편 (본문 · 제목)"]
-    header(ws, 1, cols, [30, 22, 26, 70])
+    cols = ["절기", "시기·의미", "추천 편 (A코드·회차·시즌)", "추천 편 (본문 · 제목)"]
+    header(ws, 1, cols, [30, 22, 34, 60])
     index = {(r["book"]["name"], r["rng"]): r for r in rows}
     for i, (name, picks, note) in enumerate(SEASONS, 2):
         found = [index[p] for p in picks if p in index]
@@ -267,7 +267,8 @@ def seasons(wb, rows, f, header, body, title_block):
             raise SystemExit(f"절기 추천 본문을 찾지 못함: {missing}")
         ws.cell(row=i, column=1, value=name)
         ws.cell(row=i, column=2, value=note)
-        ws.cell(row=i, column=3, value=", ".join(r["code"] for r in found))
+        ws.cell(row=i, column=3, value="\n".join(
+            f"{r['code']} ({r['book']['testament']} #{r['track_no']:03d}, 시즌{r['season']})" for r in found))
         ws.cell(row=i, column=4, value="\n".join(f"{r['disp']} · {r['title']}" for r in found))
     body(ws, 2, len(SEASONS) + 1, len(cols), center_cols=(3,))
     n = len(SEASONS) + 3
