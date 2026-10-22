@@ -38,7 +38,7 @@ CHAPTERS = {
 
 # 전체를 연속으로 다루지 않고 핵심을 골라 다루는 책
 SELECTIVE = {
-    "시편": "150편 중 대표 시편 31편을 5권 구조 순서로 선별",
+    "시편": "본편은 대표 시편 31편 선별. 150편 전체는 별도 '시편 시리즈'로 제작(31편 재사용 + 119편 신규)",
     "마가복음": "마태복음과 겹치는 사건은 제외, 마가 고유 장면 위주 선별",
     "누가복음": "탄생 이야기와 누가 고유 비유·장면 위주 선별",
     "요한복음": "21장 전체를 다루되 일부 강화(講話)는 대표 단락으로 압축",
@@ -229,7 +229,7 @@ def table(ws, row, titles, data, ncol=None, wrap_rows=True):
 STATUS = '"미착수,진행중,완료,보류"'
 
 
-def build(books, bs, rows, groups):
+def build(books, bs, rows, groups, psalms):
     wb = Workbook()
     last = len(rows) + 1  # A타입 시트의 마지막 데이터 행
     n_long = len(groups) + 1
@@ -258,6 +258,7 @@ def build(books, bs, rows, groups):
         ("롱폼 인트로+아웃트로+연결(초)", 120, "진행 캐릭터 인트로 30초 + 중간 질문 10초 + 아웃트로 60초 + 연결 20초"),
         ("시즌1 시작일 (월요일)", date(2027, 1, 4), "예시 날짜입니다. 반드시 월요일로 입력하세요 (신약 월·수·금·토 계산 기준)"),
         ("시즌2 시작일 (월요일)", None, "기본값: 시즌1이 끝난 뒤 1주 쉬고 시작. 원하는 월요일 날짜를 직접 입력해도 됩니다"),
+        ("시편 시리즈 시작일 (월요일)", None, "기본값: 시즌1 시작일과 같은 날 시작. 주 3편(화·목·일), 50주"),
         ("시즌1 목표: 구약 편수", s1o, "6개월(26주) × 매일 1편"),
         ("시즌1 목표: 신약 편수", s1n, "6개월(26주) × 주 4편"),
     ]
@@ -278,12 +279,15 @@ def build(books, bs, rows, groups):
         f"={P['시즌1 시작일 (월요일)']}+7*(ROUNDUP(MAX(COUNTIFS({A('C')},1,{A('D')},\"구약\")/7,"
         f"COUNTIFS({A('C')},1,{A('D')},\"신약\")/4),0)+1)")
 
+    ws.cell(row=prow["시편 시리즈 시작일 (월요일)"], column=3).value = f"={P['시즌1 시작일 (월요일)']}"
+
     r = section(ws, r + 1, "업로드 규칙", 4)
     for label, text in [
         ("구약 트랙", "매일 1편 (월~일)"),
         ("신약 트랙", "주 4편 (월·수·금·토)"),
         ("시즌 1 (약 6개월)", "구원 역사의 큰 줄기 + 누구나 아는 이야기 위주로 고른 편을 성경 순서대로 업로드"),
         ("시즌 2", "시즌 1에서 다루지 않은 나머지 편을 성경 순서대로 업로드. 시즌 1 + 시즌 2 = 전체(빠짐없음, '누락점검' 시트에서 확인)"),
+        ("시편 시리즈", "시편 150편 전체를 1편부터 차례로 주 3편(화·목·일). 본편에 있는 31편은 영상 재사용, 119편 신규 제작. 회차는 '시편 #001~#150'"),
         ("회차 번호", "트랙별로 이어서 매김 (예: 시즌1 구약 #001~#182 → 시즌2 구약 #183~). 성경 순서는 A코드로 유지"),
         ("롱폼", "시즌 중에는 '롱폼_시즌별'(시즌·트랙별 7편 이상 묶음)을 올리고, 전체 완료 후 '롱폼_통합본'(성경 순서 84편)을 정주행·교회 교육용으로 사용"),
     ]:
@@ -306,6 +310,8 @@ def build(books, bs, rows, groups):
         ("전체 기간", f"=ROUND((C{{r5}}-{P['시즌1 시작일 (월요일)']}+1)/7,1)", "주 (쉬는 주 포함)", None),
         ("시즌별 롱폼 편수", f"=COUNTA('롱폼_시즌별'!$B$2:$B${n_long})", "편", None),
         ("통합본 롱폼 편수", f"=COUNTA('롱폼_통합본'!$B$2:$B${n_b})", "편", None),
+        ("시편 시리즈 신규 / 재사용", "=COUNTIF('시편_시리즈'!$E$2:$E$151,\"신규 제작\")&\" / \"&COUNTIF('시편_시리즈'!$F$2:$F$151,\"A*\")", "편", None),
+        ("시편 시리즈 종료일", "=MAX('시편_시리즈'!$Q$2:$Q$151)", "", "date"),
         ("숏폼 총 분량", f"=ROUND(C{{r0}}*{P['숏폼 1편 길이(초)']}/3600,1)", "시간", None),
     ]
     r0 = r
@@ -344,6 +350,8 @@ def build(books, bs, rows, groups):
         ("A타입_제작표", "숏폼 전체 798편: 시즌, 트랙 회차, 본문, 제목, 첫 3초 훅, 핵심 구절, 메시지, 인물, 배경, 교리·연출 주의, 연결 내레이션, 업로드일, 제작 상태"),
         ("롱폼_시즌별", "시즌 중 올릴 롱폼: 시즌·트랙별 묶음, 공개 예정일"),
         ("롱폼_통합본", "성경 순서 롱폼 84편: 진행자 인트로 질문, 그리스도 연결점, 핵심 교리"),
+        ("시편_시리즈", "시편 150편 전체: 재사용/신규 구분, 핵심 구절, 메시지, 저자·표제, 업로드일"),
+        ("시편_롱폼", "시편 시리즈 롱폼 15편"),
         ("누락점검", "시즌1+시즌2=전체, 중복·미배정·회차 연속성·권별 장 점검 (모두 '정상'이어야 함)"),
         ("권별요약", "66권별 편수(시즌별), 분량, 분할 방식"),
         ("인물_캐릭터시트", "주요 인물 외형·의상 가안과 삼위 하나님·천사·사탄 표현 규칙, 진행 캐릭터(가안)"),
@@ -494,7 +502,7 @@ def build(books, bs, rows, groups):
     wbs.cell(row=1, column=16).comment = Comment("시즌1·2 숏폼이 모두 공개된 날. 통합본은 이 날 이후 정주행·교회 교육용으로 공개", "제작표")
 
     # ===== 5. 누락점검 =====
-    checks_sheet(wb, books, rows, groups, last, n_long, A, P)
+    checks_sheet(wb, books, rows, groups, last, n_long, A, P, psalms)
 
     # ===== 6. 권별요약 =====
     wk = wb.create_sheet("권별요약")
@@ -524,7 +532,11 @@ def build(books, bs, rows, groups):
         wk.cell(row=tot, column=j).fill = PatternFill("solid", fgColor=C_SUB)
     wk.freeze_panes = "C2"
 
-    # ===== 7~11 참고 시트 =====
+    # ===== 7. 시편 시리즈 =====
+    import psalms as psa
+    psa.sheets(wb, psalms, f, header, body, P, STATUS, A)
+
+    # ===== 8~ 참고 시트 =====
     from sheets_ref import characters, doctrine, templates, seasons, terms
     characters(wb, rows, last, f, header, body, title_block, section, table, C_INPUT, BORDER, WRAP)
     doctrine(wb, f, title_block, section, table)
@@ -536,7 +548,7 @@ def build(books, bs, rows, groups):
     return OUT
 
 
-def checks_sheet(wb, books, rows, groups, last, n_long, A, P):
+def checks_sheet(wb, books, rows, groups, last, n_long, A, P, psalms):
     ws = wb.create_sheet("누락점검")
     title_block(ws, "누락 점검", "시즌1 + 시즌2 = 성경 전체가 되는지 확인합니다. 결과가 모두 '정상'이어야 합니다.")
     for c, w in zip("ABCDEFGHI", (40, 14, 14, 12, 12, 10, 10, 12, 40)):
@@ -567,6 +579,8 @@ def checks_sheet(wb, books, rows, groups, last, n_long, A, P):
         ("시즌2 시작일이 시즌1 종료일보다 뒤인가 (1 = 예)", f"=IF({P['시즌2 시작일 (월요일)']}>_xlfn.MAXIFS({A('U')},{A('C')},1),1,0)", 1),
         ("시작일이 월요일인가 (시즌1·2 모두, 2 = 예)", f"=(WEEKDAY({P['시즌1 시작일 (월요일)']},2)=1)+(WEEKDAY({P['시즌2 시작일 (월요일)']},2)=1)", 2),
     ]
+    import psalms as psa
+    items += psa.check_items(len(psalms) + 1, len(psa.LONGS) + 1, A)
     r += 1
     first = r
     for label, cur, exp in items:
@@ -603,7 +617,7 @@ def checks_sheet(wb, books, rows, groups, last, n_long, A, P):
         if not missing:
             note = "없음 (모든 장 포함)"
         elif bk["name"] == "시편":
-            note = f"대표 31편 선별 — 나머지 {len(missing)}편은 이번 시리즈 범위 밖 (의도적)"
+            note = f"본편은 대표 31편 — 나머지 {len(missing)}편은 '시편_시리즈'에서 150편 전체로 다룸 (위 1번 시편 점검 참고)"
         else:
             note = f"{', '.join(map(str, missing))}장 — {SELECTIVE[bk['name']]} (의도적)"
         ws.cell(row=r, column=1, value=bk["name"])
@@ -658,9 +672,12 @@ if __name__ == "__main__":
     assign(rows)
     groups = long_groups(rows, bs)
     bridges(rows)
+    import psalms as psa
+    psalms = psa.load(rows)
     s1 = [x for x in rows if x["season"] == 1]
     assert len(s1) + sum(1 for x in rows if x["season"] == 2) == len(rows)
     assert all("long" in x for x in rows), "시즌 롱폼 미배정 편 있음"
     sizes = sorted(len(g["rows"]) for g in groups)
     print(f"시즌1 {len(s1)}편 / 시즌2 {len(rows) - len(s1)}편 / 시즌 롱폼 {len(groups)}편 (편수 {sizes[0]}~{sizes[-1]})")
-    print("저장:", build(books, bs, rows, groups))
+    print(f"시편 시리즈 {len(psalms)}편 (재사용 {sum(1 for x in psalms if x['reuse'])} / 신규 {sum(1 for x in psalms if not x['reuse'])})")
+    print("저장:", build(books, bs, rows, groups, psalms))
