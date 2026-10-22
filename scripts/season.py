@@ -3,7 +3,7 @@ import os
 
 SEASON_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                            "data", "시즌1_선정.lst")
-LONG_MIN = 7    # 시즌 롱폼 1편에 들어갈 최소 A 편수 (약 8분)
+LONG_MIN = 8    # 시즌 롱폼 1편에 들어갈 최소 A 편수 (8분 이상)
 LONG_MAX = 15   # 남은 편을 합칠 때 넘지 않을 최대 편수
 
 

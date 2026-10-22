@@ -255,7 +255,7 @@ def build(books, bs, rows, groups, psalms):
         ("시리즈 이름(가칭)", "1분 성경", "참고 영상 분석 후 확정. 유튜브 제목안에 자동 반영"),
         ("숏폼 1편 길이(초)", 60, "A타입 업로드본 길이. 권장 45~60초"),
         ("롱폼에 넣는 A 1편 길이(초)", 52, "롱폼으로 묶을 때 다음 편 예고(약 8초)를 뺀 길이"),
-        ("롱폼 인트로+아웃트로+연결(초)", 150, "오프닝 40초 + 전환 10초 + 중간 질문 10초 + 적용 40초 + 마무리 30초 + 리액션 컷 약 20초"),
+        ("롱폼 인트로+아웃트로+연결(초)", 90, "인트로 15초 + 말씀 정리 40초 + 마무리 30초 + 연결 5초"),
         ("시즌1 시작일 (월요일)", date(2027, 1, 4), "예시 날짜입니다. 반드시 월요일로 입력하세요 (신약 월·수·금·토 계산 기준)"),
         ("시즌2 시작일 (월요일)", None, "기본값: 시즌1이 끝난 뒤 1주 쉬고 시작. 원하는 월요일 날짜를 직접 입력해도 됩니다"),
         ("시편 시리즈 시작일 (월요일)", None, "기본값: 시즌1 시작일과 같은 날 시작. 주 3편(화·목·일), 50주"),
@@ -330,7 +330,7 @@ def build(books, bs, rows, groups, psalms):
     rules = [
         ("A타입 (숏폼·릴스)", "45~60초, 장면 1개 · 메시지 1개. 이야기 책은 '장면형', 시가서·서신서·예언 등은 '주제형'으로 분할"),
         ("롱폼", "A타입 7편 이상을 하나의 이야기 단위로 묶어 약 8분 이상"),
-        ("진행 캐릭터 (절충안)", "숏폼: 마지막 2~3초 등장(다음 편 안내) / 롱폼: 슈퍼북식 회차 구조(고민 → 성경 장면 관찰 → 적용) 가안. 제작템플릿 2·2-1 참고"),
+        ("진행 캐릭터 (절충안)", "숏폼: 마지막 2~3초 등장(다음 편 안내) / 롱폼: 인트로(본문 소개)와 마무리만 진행. 성경 장면에는 등장하지 않음"),
         ("스토리형 원칙", "쉬운 말 내레이션 + 핵심 구절 1개만 개역개정 인용. 성경에 없는 대사·장면은 최소화하고 '상상 장면'으로 감수"),
         ("구속사 관점", "모든 롱폼에 '그리스도 연결점'을 두어 도덕 교훈에 그치지 않고 그리스도를 가리키도록 구성"),
         ("시즌1 연결 내레이션", "시즌1은 중간 편을 건너뛰므로, A타입 '연결 내레이션' 칸에 적힌 건너뛴 내용을 1~2문장으로 요약해 흐름을 이어 줌"),
@@ -349,7 +349,7 @@ def build(books, bs, rows, groups, psalms):
     for name, desc in [
         ("A타입_제작표", "숏폼 전체 798편: 시즌, 트랙 회차, 본문, 제목, 첫 3초 훅, 핵심 구절, 메시지, 인물, 배경, 교리·연출 주의, 연결 내레이션, 업로드일, 제작 상태"),
         ("롱폼_시즌별", "시즌 중 올릴 롱폼: 시즌·트랙별 묶음, 공개 예정일"),
-        ("롱폼_통합본", "성경 순서 롱폼 84편: 진행자 인트로 질문, 그리스도 연결점, 핵심 교리"),
+        ("롱폼_통합본", "성경 순서 롱폼 84편: 그리스도 연결점, 핵심 교리"),
         ("시편_시리즈", "시편 150편 전체(본편과 별도 제작): 핵심 구절, 메시지, 저자·표제, 업로드일"),
         ("시편_롱폼", "시편 시리즈 롱폼 15편"),
         ("누락점검", "시즌1+시즌2=전체, 중복·미배정·회차 연속성·권별 장 점검 (모두 '정상'이어야 함)"),
@@ -432,9 +432,9 @@ def build(books, bs, rows, groups, psalms):
     # ===== 3. 롱폼_시즌별 =====
     wl = wb.create_sheet("롱폼_시즌별")
     l_cols = ["순번", "롱폼코드", "시즌", "트랙", "롱폼 제목", "포함 통합본 B", "본문 범위", "A 편수",
-              "예상 길이(초)", "예상 길이(분)", "첫 회차", "마지막 회차", "진행자 인트로 질문(삶의 고민)",
+              "예상 길이(초)", "예상 길이(분)", "첫 회차", "마지막 회차",
               "그리스도 연결점", "핵심 교리", "공개 예정일", "요일", "대본", "교리감수", "영상", "업로드", "비고"]
-    header(wl, 1, l_cols, [6, 9, 5, 6, 34, 16, 26, 7, 9, 9, 11, 11, 32, 44, 32, 11, 5, 8, 8, 8, 8, 16])
+    header(wl, 1, l_cols, [6, 9, 5, 6, 34, 16, 26, 7, 9, 9, 11, 11, 44, 32, 11, 5, 8, 8, 8, 8, 16])
     for i, g in enumerate(groups, 2):
         first, lastr = g["rows"][0], g["rows"][-1]
         titles = [b["title"] for b in g["bs"]]
@@ -448,15 +448,14 @@ def build(books, bs, rows, groups, psalms):
         wl.cell(row=i, column=10, value=f"=ROUND(I{i}/60,1)")
         wl.cell(row=i, column=11, value=f"=D{i}&\" #\"&TEXT(_xlfn.MINIFS({A('E')},{A('H')},B{i}),\"000\")")
         wl.cell(row=i, column=12, value=f"=D{i}&\" #\"&TEXT(_xlfn.MAXIFS({A('E')},{A('H')},B{i}),\"000\")")
-        wl.cell(row=i, column=13, value=g["bs"][0]["intro"])
-        wl.cell(row=i, column=14, value="\n".join(b["christ"] for b in g["bs"]))
-        wl.cell(row=i, column=15, value=" / ".join(b["doctrine"] for b in g["bs"][:2]))
-        wl.cell(row=i, column=16, value=f"=_xlfn.MAXIFS({A('U')},{A('H')},B{i})+1")
-        wl.cell(row=i, column=16).number_format = "yyyy-mm-dd"
-        wl.cell(row=i, column=17, value=f"=CHOOSE(WEEKDAY(P{i},2),\"월\",\"화\",\"수\",\"목\",\"금\",\"토\",\"일\")")
-        for j in range(18, 22):
+        wl.cell(row=i, column=13, value="\n".join(b["christ"] for b in g["bs"]))
+        wl.cell(row=i, column=14, value=" / ".join(b["doctrine"] for b in g["bs"][:2]))
+        wl.cell(row=i, column=15, value=f"=_xlfn.MAXIFS({A('U')},{A('H')},B{i})+1")
+        wl.cell(row=i, column=15).number_format = "yyyy-mm-dd"
+        wl.cell(row=i, column=16, value=f"=CHOOSE(WEEKDAY(O{i},2),\"월\",\"화\",\"수\",\"목\",\"금\",\"토\",\"일\")")
+        for j in range(17, 21):
             wl.cell(row=i, column=j, value="미착수")
-    body(wl, 2, n_long, len(l_cols), center_cols=(1, 2, 3, 4, 8, 9, 10, 11, 12, 16, 17, 18, 19, 20, 21))
+    body(wl, 2, n_long, len(l_cols), center_cols=(1, 2, 3, 4, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 20))
     for i, g in enumerate(groups, 2):
         if g["season"] == 1:
             for j in (2, 3, 4):
@@ -464,18 +463,18 @@ def build(books, bs, rows, groups, psalms):
     wl.freeze_panes = "F2"
     wl.auto_filter.ref = f"A1:{get_column_letter(len(l_cols))}{n_long}"
     dvl = DataValidation(type="list", formula1=STATUS, allow_blank=True)
-    dvl.add(f"R2:U{n_long}")
+    dvl.add(f"Q2:T{n_long}")
     wl.add_data_validation(dvl)
-    wl.cell(row=1, column=16).comment = Comment("포함된 마지막 숏폼 공개 다음 날", "제작표")
+    wl.cell(row=1, column=15).comment = Comment("포함된 마지막 숏폼 공개 다음 날", "제작표")
     wl.cell(row=1, column=7).comment = Comment("시즌1 롱폼은 건너뛴 편이 있으므로 연결 내레이션으로 이어 붙이세요", "제작표")
 
     # ===== 4. 롱폼_통합본 =====
     wbs = wb.create_sheet("롱폼_통합본")
     b_cols = ["순번", "B코드", "롱폼 제목", "포함 책", "본문 범위", "A 편수", "그중 시즌1",
-              "예상 길이(초)", "예상 길이(분)", "첫 A코드", "마지막 A코드", "진행자 인트로 질문(삶의 고민)",
+              "예상 길이(초)", "예상 길이(분)", "첫 A코드", "마지막 A코드",
               "그리스도 연결점", "핵심 교리", "전체 주의", "모든 편 공개 완료일",
               "대본", "교리감수", "영상", "업로드", "비고"]
-    header(wbs, 1, b_cols, [6, 7, 26, 18, 26, 7, 8, 9, 9, 9, 9, 32, 40, 32, 30, 12, 8, 8, 8, 8, 16])
+    header(wbs, 1, b_cols, [6, 7, 26, 18, 26, 7, 8, 9, 9, 9, 9, 40, 32, 30, 12, 8, 8, 8, 8, 16])
     for i, b in enumerate(bs, 2):
         mine = [x for x in rows if x["b"] is b]
         vals = [i - 1, b["code"], b["title"], " · ".join(b["books"]), span_text(mine[0], mine[-1])]
@@ -487,19 +486,19 @@ def build(books, bs, rows, groups, psalms):
         wbs.cell(row=i, column=9, value=f"=ROUND(H{i}/60,1)")
         wbs.cell(row=i, column=10, value=f"=INDEX({A('B')},MATCH(B{i},{A('G')},0))")
         wbs.cell(row=i, column=11, value=f"=INDEX({A('B')},MATCH(B{i},{A('G')},0)+F{i}-1)")
-        for j, v in zip((12, 13, 14, 15), (b["intro"], b["christ"], b["doctrine"], b["note"])):
+        for j, v in zip((12, 13, 14), (b["christ"], b["doctrine"], b["note"])):
             wbs.cell(row=i, column=j, value=v)
-        wbs.cell(row=i, column=16, value=f"=_xlfn.MAXIFS({A('U')},{A('G')},B{i})")
-        wbs.cell(row=i, column=16).number_format = "yyyy-mm-dd"
-        for j in range(17, 21):
+        wbs.cell(row=i, column=15, value=f"=_xlfn.MAXIFS({A('U')},{A('G')},B{i})")
+        wbs.cell(row=i, column=15).number_format = "yyyy-mm-dd"
+        for j in range(16, 20):
             wbs.cell(row=i, column=j, value="미착수")
-    body(wbs, 2, n_b, len(b_cols), center_cols=(1, 2, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19, 20))
+    body(wbs, 2, n_b, len(b_cols), center_cols=(1, 2, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19))
     wbs.freeze_panes = "D2"
     wbs.auto_filter.ref = f"A1:{get_column_letter(len(b_cols))}{n_b}"
     dvb = DataValidation(type="list", formula1=STATUS, allow_blank=True)
-    dvb.add(f"Q2:T{n_b}")
+    dvb.add(f"P2:S{n_b}")
     wbs.add_data_validation(dvb)
-    wbs.cell(row=1, column=16).comment = Comment("시즌1·2 숏폼이 모두 공개된 날. 통합본은 이 날 이후 정주행·교회 교육용으로 공개", "제작표")
+    wbs.cell(row=1, column=15).comment = Comment("시즌1·2 숏폼이 모두 공개된 날. 통합본은 이 날 이후 정주행·교회 교육용으로 공개", "제작표")
 
     # ===== 5. 누락점검 =====
     checks_sheet(wb, books, rows, groups, last, n_long, A, P, psalms)
