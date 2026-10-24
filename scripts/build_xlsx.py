@@ -259,6 +259,7 @@ def build(books, bs, rows, groups, psalms):
         ("시즌1 시작일 (월요일)", date(2027, 1, 4), "예시 날짜입니다. 반드시 월요일로 입력하세요 (신약 월·수·금·토 계산 기준)"),
         ("시즌2 시작일 (월요일)", None, "기본값: 시즌1이 끝난 뒤 1주 쉬고 시작. 원하는 월요일 날짜를 직접 입력해도 됩니다"),
         ("시편 시리즈 시작일 (월요일)", None, "기본값: 시즌1 시작일과 같은 날 시작. 주 3편(화·목·일), 50주"),
+        ("사전 제작 여유(일)", 28, "업로드보다 며칠 먼저 완성해 둘지. 28일 = 4주치를 미리 비축"),
         ("시즌1 목표: 구약 편수", s1o, "6개월(26주) × 매일 1편"),
         ("시즌1 목표: 신약 편수", s1n, "6개월(26주) × 주 4편"),
     ]
@@ -288,6 +289,9 @@ def build(books, bs, rows, groups, psalms):
         ("시즌 1 (약 6개월)", "구원 역사의 큰 줄기 + 누구나 아는 이야기 위주로 고른 편을 성경 순서대로 업로드"),
         ("시즌 2", "시즌 1에서 다루지 않은 나머지 편을 성경 순서대로 업로드. 시즌 1 + 시즌 2 = 전체(빠짐없음, '누락점검' 시트에서 확인)"),
         ("시편 시리즈", "시편 150편 전체를 1편부터 차례로 주 3편(화·목·일). 150편 모두 시편 시리즈용으로 따로 제작(본편 시편 31편은 본편에 그대로 유지). 회차는 '시편 #001~#150'"),
+        ("통독 챌린지", "업로드 일정 그대로 '1분성경 통독 챌린지'(#1분성경챌린지) 운영. 날짜별 본문은 '통독챌린지' 시트"),
+        ("채널 운영", "한 채널에서 본편·시편 시리즈·롱폼을 모두 운영하고 재생목록으로 구분 ('채널_재생목록' 시트)"),
+        ("사전 제작", "업로드 시작 전 4주치(본편 구약 28편 + 신약 16편, 시편 12편)를 미리 완성. A타입 '사전 제작분'·'제작 완료 목표일' 칸"),
         ("회차 번호", "트랙별로 이어서 매김 (예: 시즌1 구약 #001~#182 → 시즌2 구약 #183~). 성경 순서는 A코드로 유지"),
         ("롱폼", "시즌 중에는 '롱폼_시즌별'(시즌·트랙별 7편 이상 묶음)을 올리고, 전체 완료 후 '롱폼_통합본'(성경 순서 84편)을 정주행·교회 교육용으로 사용"),
     ]:
@@ -312,6 +316,8 @@ def build(books, bs, rows, groups, psalms):
         ("통합본 롱폼 편수", f"=COUNTA('롱폼_통합본'!$B$2:$B${n_b})", "편", None),
         ("시편 시리즈 제작 편수", "=COUNTIF('시편_시리즈'!$E$2:$E$151,\"신규 제작*\")", "편 (본편과 별도)", None),
         ("시편 시리즈 종료일", "=MAX('시편_시리즈'!$Q$2:$Q$151)", "", "date"),
+        ("시즌1 시작 전 미리 만들 편 (본편)", f"=COUNTIFS({A('C')},1,{A('AJ')},\"시즌 시작 전 제작\")", "편", None),
+        ("시편 시리즈 시작 전 미리 만들 편", "=COUNTIF('시편_시리즈'!$AA$2:$AA$151,\"시작 전 제작\")", "편", None),
         ("숏폼 총 분량", f"=ROUND(C{{r0}}*{P['숏폼 1편 길이(초)']}/3600,1)", "시간", None),
     ]
     r0 = r
@@ -352,6 +358,9 @@ def build(books, bs, rows, groups, psalms):
         ("롱폼_통합본", "성경 순서 롱폼 84편: 그리스도 연결점, 핵심 교리"),
         ("시편_시리즈", "시편 150편 전체(본편과 별도 제작): 핵심 구절, 메시지, 저자·표제, 업로드일"),
         ("시편_롱폼", "시편 시리즈 롱폼 15편"),
+        ("통독챌린지", "날짜별 구약·신약·시편 본문 달력 (교회·소그룹 배포용)"),
+        ("성과기록", "주간 성과, 도입 유형별·제목 방식별 비교"),
+        ("채널_재생목록", "한 채널 운영 기준 재생목록(시즌·인물·권별·롱폼)과 편수"),
         ("누락점검", "시즌1+시즌2=전체, 중복·미배정·회차 연속성·권별 장 점검 (모두 '정상'이어야 함)"),
         ("권별요약", "66권별 편수(시즌별), 분량, 분할 방식"),
         ("인물_캐릭터시트", "주요 인물 외형·의상 가안과 삼위 하나님·천사·사탄 표현 규칙, 진행 캐릭터(가안)"),
@@ -373,11 +382,13 @@ def build(books, bs, rows, groups, psalms):
     wa = wb.create_sheet("A타입_제작표")
     a_cols = ["순번", "A코드", "시즌", "트랙", "트랙 회차", "회차 표기", "통합본 B", "시즌 롱폼",
               "책", "본문", "유형", "제목", "첫 3초 훅", "핵심 구절", "한 줄 메시지", "등장인물",
-              "장소·배경", "교리·연출 주의", "연결 내레이션", "유튜브 제목안", "업로드 예정일",
+              "장소·배경", "교리·연출 주의", "연결 내레이션", "제목안 A (회차형)", "업로드 예정일",
               "요일", "다음 편 예고", "대본", "교리감수", "영상", "업로드", "비고",
-              "트랙키", "시즌 내 순서"]
+              "트랙키", "시즌 내 순서", "제목안 B (도입형)", "첫 컷 장면", "이어지는 이야기 (끊는 지점)",
+              "도입 유형", "제작 완료 목표일", "사전 제작분", "인물 재생목록",
+              "조회수", "시청 vs 넘김(%)", "평균 시청률(%)", "구독 증가", "사용한 제목안 (A/B)", "일자키"]
     widths = [6, 8, 5, 6, 7, 10, 7, 8, 10, 16, 6, 20, 30, 12, 32, 22, 22, 34, 40, 40, 11,
-              5, 24, 8, 8, 8, 8, 16, 9, 7]
+              5, 24, 8, 8, 8, 8, 16, 9, 7, 44, 36, 36, 9, 11, 14, 16, 9, 9, 9, 8, 9, 14]
     header(wa, 1, a_cols, widths)
     for i, rw in enumerate(rows, 2):
         vals = [i - 1, rw["code"], rw["season"], rw["book"]["testament"]]
@@ -406,7 +417,19 @@ def build(books, bs, rows, groups, psalms):
             wa.cell(row=i, column=j, value="미착수")
         wa.cell(row=i, column=29, value=f"=D{i}&\"#\"&E{i}")
         wa.cell(row=i, column=30, value=f"=COUNTIFS($C$2:C{i},C{i},$D$2:D{i},D{i})")
-    body(wa, 2, last, len(a_cols), center_cols=(1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 14, 21, 22, 24, 25, 26, 27, 29, 30))
+        wa.cell(row=i, column=31, value=f"=M{i}&\" | {rw['chapter']} #\"&SUBSTITUTE({P['시리즈 이름(가칭)']},\" \",\"\")")
+        for j, v in zip((32, 33, 34), (rw["first_cut"], rw["cliff"], rw["hook_type"])):
+            wa.cell(row=i, column=j, value=v)
+        wa.cell(row=i, column=35, value=f"=U{i}-{P['사전 제작 여유(일)']}")
+        wa.cell(row=i, column=35).number_format = "yyyy-mm-dd"
+        wa.cell(row=i, column=36, value=f"=IF(U{i}<{start}+{P['사전 제작 여유(일)']},\"시즌 시작 전 제작\",\"\")")
+        wa.cell(row=i, column=37, value=rw["arcs"])
+        wa.cell(row=i, column=43, value=f"=D{i}&\"|\"&TEXT(U{i},\"yyyy-mm-dd\")")
+    body(wa, 2, last, len(a_cols), center_cols=(1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 14, 21, 22, 24, 25, 26, 27, 29, 30,
+                                                34, 35, 36, 38, 39, 40, 41, 42, 43))
+    for i in range(2, last + 1):
+        for j in range(38, 43):
+            wa.cell(row=i, column=j).fill = PatternFill("solid", fgColor=C_INPUT)
     S1_FILL = PatternFill("solid", fgColor="E2EFDA")
     for i, rw in enumerate(rows, 2):
         if rw["season"] == 1:
@@ -428,6 +451,11 @@ def build(books, bs, rows, groups, psalms):
     wa.cell(row=1, column=5).comment = Comment("트랙(구약/신약)별 업로드 순번. 시즌1을 먼저 매기고 시즌2가 이어 받음", "제작표")
     wa.cell(row=1, column=19).comment = Comment("시즌1: 건너뛴 시즌2 편 요약 → 내레이션 1~2문장으로 연결 / 시즌2: 시즌1의 어느 편 다음 이야기인지", "제작표")
     wa.cell(row=1, column=29).comment = Comment("다음 편 찾기용 보조 열", "제작표")
+    wa.cell(row=1, column=31).comment = Comment("도입 문구를 앞세운 제목. 초기에 A안과 번갈아 써 보고 성과기록 시트에서 비교", "제작표")
+    wa.cell(row=1, column=32).comment = Comment("시즌1은 작성 완료. 나머지는 대본 작성 때 확정", "제작표")
+    wa.cell(row=1, column=33).comment = Comment("다음 편과 같은 인물의 연속 장면이면 궁금한 순간에서 끊고 다음 편으로 연결", "제작표")
+    wa.cell(row=1, column=38).comment = Comment("노란 칸: 업로드 후 유튜브 스튜디오 수치를 입력 → 성과기록 시트에 자동 집계", "제작표")
+    wa.cell(row=1, column=43).comment = Comment("통독챌린지 달력용 보조 열", "제작표")
 
     # ===== 3. 롱폼_시즌별 =====
     wl = wb.create_sheet("롱폼_시즌별")
@@ -535,6 +563,12 @@ def build(books, bs, rows, groups, psalms):
     import psalms as psa
     psa.sheets(wb, psalms, f, header, body, P, STATUS, A)
 
+    # ===== 8. 통독 챌린지 · 성과 기록 · 채널 재생목록 =====
+    import extras
+    extras.challenge_sheet(wb, f, header, body, last, len(psalms) + 1, P, date(2027, 1, 4), date(2028, 6, 14))
+    extras.kpi_sheet(wb, f, header, body, last, P, 80)
+    extras.playlist_sheet(wb, f, header, body, books, last, len(psalms) + 1, n_long, n_b, len(psa.LONGS) + 1)
+
     # ===== 8~ 참고 시트 =====
     from sheets_ref import characters, doctrine, templates, seasons, terms
     characters(wb, rows, last, f, header, body, title_block, section, table, C_INPUT, BORDER, WRAP)
@@ -580,6 +614,12 @@ def checks_sheet(wb, books, rows, groups, last, n_long, A, P, psalms):
     ]
     import psalms as psa
     items += psa.check_items(len(psalms) + 1, len(psa.LONGS) + 1, A)
+    items += [
+        ("통독 달력의 구약 편수 = 구약 전체", "=COUNTIF('통독챌린지'!$D$2:$D$600,\"?*\")", f"=COUNTIF({A('D')},\"구약\")"),
+        ("통독 달력의 신약 편수 = 신약 전체", "=COUNTIF('통독챌린지'!$E$2:$E$600,\"?*\")", f"=COUNTIF({A('D')},\"신약\")"),
+        ("통독 달력의 시편 편수 = 150", "=COUNTIF('통독챌린지'!$F$2:$F$600,\"?*\")", 150),
+        ("시즌1 첫 컷 미작성 편", f"=COUNTIFS({A('C')},1,{A('AF')},\"대본 작성 시*\")", 0),
+    ]
     r += 1
     first = r
     for label, cur, exp in items:
@@ -671,6 +711,9 @@ if __name__ == "__main__":
     assign(rows)
     groups = long_groups(rows, bs)
     bridges(rows)
+    import extras
+    extras.load_first_cuts(rows)
+    extras.annotate(rows)
     import psalms as psa
     psalms = psa.load(rows)
     s1 = [x for x in rows if x["season"] == 1]
