@@ -387,9 +387,10 @@ def build(books, bs, rows, groups, psalms):
               "요일", "다음 편 예고", "대본", "교리감수", "영상", "업로드", "비고",
               "트랙키", "시즌 내 순서", "제목안 B (도입형)", "첫 컷 장면", "이어지는 이야기 (끊는 지점)",
               "도입 유형", "제작 완료 목표일", "사전 제작분", "인물 재생목록",
-              "조회수", "시청 vs 넘김(%)", "평균 시청률(%)", "구독 증가", "사용한 제목안 (A/B)", "일자키"]
+              "조회수", "시청 vs 넘김(%)", "평균 시청률(%)", "구독 증가", "사용한 제목안 (A/B)", "일자키",
+              "핵심 구절 본문 (개역한글)", "본문 확인 표시"]
     widths = [6, 8, 5, 6, 7, 10, 7, 8, 10, 16, 6, 20, 30, 12, 32, 22, 22, 34, 40, 40, 11,
-              5, 24, 8, 8, 8, 8, 16, 9, 7, 44, 36, 36, 9, 11, 14, 16, 9, 9, 9, 8, 9, 14]
+              5, 24, 8, 8, 8, 8, 16, 9, 7, 44, 36, 36, 9, 11, 14, 16, 9, 9, 9, 8, 9, 14, 60, 20]
     header(wa, 1, a_cols, widths)
     for i, rw in enumerate(rows, 2):
         vals = [i - 1, rw["code"], rw["season"], rw["book"]["testament"]]
@@ -426,6 +427,8 @@ def build(books, bs, rows, groups, psalms):
         wa.cell(row=i, column=36, value=f"=IF(U{i}<{start}+{P['사전 제작 여유(일)']},\"시즌 시작 전 제작\",\"\")")
         wa.cell(row=i, column=37, value=rw["arcs"])
         wa.cell(row=i, column=43, value=f"=D{i}&\"|\"&TEXT(U{i},\"yyyy-mm-dd\")")
+        wa.cell(row=i, column=44, value=rw.get("kv_text", ""))
+        wa.cell(row=i, column=45, value=rw.get("kv_flags", ""))
     body(wa, 2, last, len(a_cols), center_cols=(1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 14, 21, 22, 24, 25, 26, 27, 29, 30,
                                                 34, 35, 36, 38, 39, 40, 41, 42, 43))
     for i in range(2, last + 1):
@@ -530,7 +533,7 @@ def build(books, bs, rows, groups, psalms):
     wbs.cell(row=1, column=15).comment = Comment("시즌1·2 숏폼이 모두 공개된 날. 통합본은 이 날 이후 정주행·교회 교육용으로 공개", "제작표")
 
     # ===== 5. 누락점검 =====
-    checks_sheet(wb, books, rows, groups, last, n_long, A, P, psalms)
+    checks_sheet(wb, books, rows, groups, last, n_long, A, P, psalms, VERIFY_PROBLEMS)
 
     # ===== 6. 권별요약 =====
     wk = wb.create_sheet("권별요약")
@@ -582,7 +585,7 @@ def build(books, bs, rows, groups, psalms):
     return OUT
 
 
-def checks_sheet(wb, books, rows, groups, last, n_long, A, P, psalms):
+def checks_sheet(wb, books, rows, groups, last, n_long, A, P, psalms, verify_problems=None):
     ws = wb.create_sheet("누락점검")
     title_block(ws, "누락 점검", "시즌1 + 시즌2 = 성경 전체가 되는지 확인합니다. 결과가 모두 '정상'이어야 합니다.")
     for c, w in zip("ABCDEFGHI", (40, 14, 14, 12, 12, 10, 10, 12, 40)):
@@ -621,6 +624,8 @@ def checks_sheet(wb, books, rows, groups, last, n_long, A, P, psalms):
         ("통독 달력의 시편 편수 = 150", "=COUNTIF('통독챌린지'!$F$2:$F$600,\"?*\")", 150),
         ("시즌1 첫 컷 미작성 편", f"=COUNTIFS({A('C')},1,{A('AF')},\"대본 작성 시*\")", 0),
     ]
+    if verify_problems is not None:
+        items.append(("역본 대조: 본문 범위·핵심 구절·빠진 절 오류 (개역한글 기준)", len(verify_problems), 0))
     r += 1
     first = r
     for label, cur, exp in items:
@@ -717,6 +722,20 @@ if __name__ == "__main__":
     extras.annotate(rows)
     import psalms as psa
     psalms = psa.load(rows)
+    import verify_bible as vb
+    VERIFY_PROBLEMS = vb.check_project1(rows, psalms) if vb.KRV else None
+    for p in VERIFY_PROBLEMS or []:
+        print("역본 대조 확인 필요:", p)
+    if vb.KRV:
+        import re as _re
+        for r in rows + psalms:
+            ab = r["book"]["abbr"] if isinstance(r["book"], dict) else "시"  # 시편 시리즈의 book은 권 이름
+            ref = r["kv"].split(" ", 1)[1]
+            t, fl = vb.text(ab, ref)
+            if t and "{" in t:
+                t = _re.sub(r"\{[^}]*\}\s*", "", t)
+                fl.add("시편 표제 생략")
+            r["kv_text"], r["kv_flags"] = t or "", ", ".join(sorted(fl))
     s1 = [x for x in rows if x["season"] == 1]
     assert len(s1) + sum(1 for x in rows if x["season"] == 2) == len(rows)
     assert all("long" in x for x in rows), "시즌 롱폼 미배정 편 있음"

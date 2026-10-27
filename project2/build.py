@@ -3,6 +3,7 @@
 실행: python3 project2/build.py
 """
 import os
+import re
 import sys
 from datetime import date
 
@@ -14,6 +15,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "scripts"))
 import build_xlsx as bx  # noqa: E402  (서식 도구, 66권 정보 재사용)
+import verify_bible as vb  # noqa: E402  (역본 본문)
 
 OUT = os.path.join(HERE, "말씀숏폼_제작표.xlsx")
 PER_DAY = 2  # 트랙별 하루 편수
@@ -134,7 +136,8 @@ def build(books, verses):
         ("포함된 책", "=COUNTIF('권별점검'!$C$2:$C$67,\">0\")", "권 / 66권", None),
         ("마지막 업로드일", f"=MAX({V('R')})", "", "date"),
         ("전체 기간", f"=MAX({V('R')})-{P['시작일']}+1", "일 (목표 182일 이내)", None),
-        ("본문 입력 완료", f"=COUNTIF({V('L')},\"대조 완료\")&\" / \"&COUNTA({V('B')})", "편", None),
+        ("본문 자동 입력", f"=COUNTIF({V('L')},\"자동 입력*\")+COUNTIF({V('L')},\"대조 완료\")", "편 (개역한글 원문에서)", None),
+        ("띄어쓰기 대조가 필요한 구절", f"=COUNTIF({V('L')},\"*대조 필요\")", "편 (여러 줄에 걸친 구절)", None),
     ]:
         ws.cell(row=r, column=1, value=label).font = f(True)
         c = ws.cell(row=r, column=3, value=formula)
@@ -149,7 +152,7 @@ def build(books, verses):
         ("말씀에만 집중", "영상에는 해설·진행자·내레이션 없이 구절 낭독과 자막만. 설명이 꼭 필요한 구절은 '설명란 문구'를 유튜브 설명란·인스타 게시글에만 적음"),
         ("트랙", "구약 트랙과 신약 트랙이 각각 성경 순서대로 동시에 진행 (창세기→말라기, 마태복음→요한계시록)"),
         ("채널", "프로젝트1과 같은 채널. '말씀' 재생목록으로 구분하고 업로드 시간을 겹치지 않게"),
-        ("성경 본문", "개역한글판만 사용. 본문은 공개된 원문에서 붙여 넣고 장절별로 대조 (기억이나 다른 번역에서 옮기지 않음)"),
+        ("성경 본문", "개역한글판만 사용. 본문은 reference/krv.tsv(개역한글 원문 변환본)에서 자동으로 넣음. '대조 필요' 표시 구절은 띄어쓰기를 원본 PDF와 한 번 더 확인"),
         ("선정 기준", "66권 모두 1구절 이상. 책의 분량과 많이 암송·인용되는 구절을 함께 고려. 한 절만 떼어 쓰면 뜻이 달라지는 구절은 피하거나 설명란 문구를 붙임"),
     ]:
         ws.cell(row=r, column=1, value=label).font = f(True)
@@ -164,11 +167,20 @@ def build(books, verses):
     wv = wb.create_sheet("구절목록")
     cols = ["순번", "코드", "트랙", "트랙 회차", "회차 표기", "책", "장절", "자막 출처 표기", "주제", "화면 배경",
             "본문 (개역한글)", "본문 상태", "글자 수", "권장 길이(초)", "제목안", "해시태그", "설명란 문구",
-            "업로드일", "업로드 시간", "요일", "영상", "업로드", "조회수", "시청 vs 넘김(%)", "비고"]
-    header(wv, 1, cols, [6, 8, 6, 7, 13, 11, 9, 16, 10, 11, 50, 10, 7, 9, 44, 40, 50, 11, 9, 5, 8, 8, 9, 9, 16])
+            "업로드일", "업로드 시간", "요일", "영상", "업로드", "조회수", "시청 vs 넘김(%)", "비고",
+            "확인 표시", "WEB (영어, 확장용)"]
+    header(wv, 1, cols, [6, 8, 6, 7, 13, 11, 9, 16, 10, 11, 50, 14, 7, 9, 44, 40, 50, 11, 9, 5, 8, 8, 9, 9, 16, 24, 50])
     for i, v in enumerate(verses, 2):
+        krv, flags = vb.text(v["book"]["abbr"], v["ref"])
+        if krv and "{" in krv:  # 시편 표제는 말씀 카드에서 생략
+            krv = re.sub(r"\{[^}]*\}\s*", "", krv)
+            flags.add("시편 표제 생략")
+        status = "자동 입력 · 대조 필요" if flags & {"줄바꿈 띄어쓰기 확인", "원본에서 앞 절과 붙어 인쇄됨"} else "자동 입력"
+        web = vb.text(v["book"]["abbr"], v["ref"], vb.WEB)[0] if vb.WEB else None
         vals = [i - 1, f"W{i - 1:04d}", v["track"], v["no"], None, v["book"]["name"], v["ref"],
-                f"({v['disp']}, 개역한글)", v["theme"], THEME_BG[v["theme"]], None, "미입력"]
+                f"({v['disp']}, 개역한글)", v["theme"], THEME_BG[v["theme"]], krv, status if krv else "미입력"]
+        wv.cell(row=i, column=26, value=", ".join(sorted(flags)))
+        wv.cell(row=i, column=27, value=web or "")
         for j, val in enumerate(vals, 1):
             wv.cell(row=i, column=j, value=val)
         wv.cell(row=i, column=5, value=f"=C{i}&\"말씀 #\"&TEXT(D{i},\"000\")")
@@ -200,7 +212,7 @@ def build(books, verses):
             wv.cell(row=i, column=17).font = f(False, 10, "C00000")
     wv.freeze_panes = "I2"
     wv.auto_filter.ref = f"A1:{get_column_letter(len(cols))}{last}"
-    dv1 = DataValidation(type="list", formula1='"미입력,입력,대조 완료"', allow_blank=True)
+    dv1 = DataValidation(type="list", formula1='"미입력,자동 입력,자동 입력 · 대조 필요,대조 완료"', allow_blank=True)
     dv1.add(f"L2:L{last}")
     dv2 = DataValidation(type="list", formula1=STATUS, allow_blank=True)
     dv2.add(f"U2:V{last}")

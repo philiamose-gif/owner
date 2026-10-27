@@ -68,8 +68,8 @@ def sheets(wb, psalms, f, header, body, P, STATUS, A):
     cols = ["편", "시편코드", "권", "유형", "제작 구분", "본편 같은 시편", "제목", "첫 3초 훅", "핵심 구절",
             "한 줄 메시지", "저자·표제", "장소·배경", "교리·연출 주의", "회차 표기", "시편 롱폼",
             "유튜브 제목안", "업로드 예정일", "요일", "다음 편 예고", "대본", "교리감수", "영상", "업로드", "비고",
-            "일자키", "제작 완료 목표일", "사전 제작분"]
-    header(ws, 1, cols, [5, 8, 7, 10, 18, 9, 20, 30, 10, 32, 24, 22, 32, 10, 8, 40, 11, 5, 26, 8, 8, 8, 8, 16, 14, 11, 14])
+            "일자키", "제작 완료 목표일", "사전 제작분", "핵심 구절 본문 (개역한글)", "본문 확인 표시"]
+    header(ws, 1, cols, [5, 8, 7, 10, 18, 9, 20, 30, 10, 32, 24, 22, 32, 10, 8, 40, 11, 5, 26, 8, 8, 8, 8, 16, 14, 11, 14, 60, 20])
     REUSE = PatternFill("solid", fgColor="E2EFDA")
     for i, ps in enumerate(psalms, 2):
         m = ps["reuse"]
@@ -92,6 +92,8 @@ def sheets(wb, psalms, f, header, body, P, STATUS, A):
         ws.cell(row=i, column=25, value=f"=\"시편|\"&TEXT(Q{i},\"yyyy-mm-dd\")")
         ws.cell(row=i, column=26, value=f"=Q{i}-{P['사전 제작 여유(일)']}")
         ws.cell(row=i, column=26).number_format = "yyyy-mm-dd"
+        ws.cell(row=i, column=28, value=ps.get("kv_text", ""))
+        ws.cell(row=i, column=29, value=ps.get("kv_flags", ""))
         ws.cell(row=i, column=27, value=f"=IF(Q{i}<{P['시편 시리즈 시작일 (월요일)']}+{P['사전 제작 여유(일)']},\"시작 전 제작\",\"\")")
     body(ws, 2, n, len(cols), center_cols=(1, 2, 3, 4, 5, 6, 9, 14, 15, 17, 18, 20, 21, 22, 23, 25, 26, 27))
     for i, ps in enumerate(psalms, 2):
