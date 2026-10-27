@@ -8,6 +8,7 @@
 실행: python3 scripts/verify_bible.py
 """
 import os
+import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -27,15 +28,29 @@ def load(name):
 
 KRV, WEB, NKRV = load("krv.tsv"), load("web.tsv"), load("private/nkrv.tsv")
 
+# 확인 표시 — 이 중 하나라도 있으면 원본 PDF와 대조
+F_BREAK, F_MERGED, F_HEADING = "줄바꿈 띄어쓰기 확인", "앞 절과 합쳐 인쇄됨", "시편 표제 생략"
+REVIEW = {F_BREAK, F_MERGED}
+
+
+def last_index(src):
+    """(약어, 장) → 마지막 절"""
+    d = {}
+    for a, c, v in src or ():
+        d[(a, c)] = max(d.get((a, c), 0), v)
+    return d
+
+
+LAST = {id(s): last_index(s) for s in (KRV, WEB, NKRV) if s}
+
 
 def last_verse(abbr, ch, src=None):
     src = src or KRV
-    vs = [v for (a, c, v) in src if a == abbr and c == ch]
-    return max(vs) if vs else 0
+    return LAST[id(src)].get((abbr, ch), 0)
 
 
 def bounds(rng):
-    """'1:26-2:3' → ((1,26),(2,3)), '3:17-18' → ((3,17),(3,18)), '23'(시편) → ((23,1),(23,끝))"""
+    """'1:26-2:3' → ((1,26),(2,3)), '3:17-18' → ((3,17),(3,18)), '3:16' → ((3,16),(3,16))"""
     a, _, b = rng.partition("-")
     c1, v1 = map(int, a.split(":"))
     if not b:
@@ -47,39 +62,32 @@ def bounds(rng):
     return (c1, v1), (c2, v2)
 
 
-def text(abbr, rng, src=None):
-    """구절(또는 짧은 범위) 본문과 확인 표시."""
+def text(abbr, rng, src=None, strip_heading=True):
+    """구절(또는 짧은 범위) 본문과 확인 표시. 시편 표제 {...}는 기본으로 뺀다."""
     src = src or KRV
     (c1, v1), (c2, v2) = bounds(rng)
     out, flags = [], set()
     for c in range(c1, c2 + 1):
         lo = v1 if c == c1 else 1
         hi = v2 if c == c2 else last_verse(abbr, c, src)
-        if src is KRV and (abbr, c, hi + 1) in KRV_SOURCE_MERGED:
-            hi += 1
         for v in range(lo, hi + 1):
-            if src is KRV and (abbr, c, v) in KRV_SOURCE_MERGED:
-                flags.add("원본에서 앞 절과 붙어 인쇄됨")
-                continue
             if (abbr, c, v) not in src:
                 return None, {"없는 절"}
             t, fl = src[(abbr, c, v)]
             if fl.startswith("merged"):
-                flags.add("앞 절과 합쳐 인쇄됨")
+                flags.add(F_MERGED)
                 continue
             if fl == "break":
-                flags.add("줄바꿈 띄어쓰기 확인")
+                flags.add(F_BREAK)
             out.append(t)
-    return " ".join(out), flags
-
-
-# 개역한글 PDF 원본에서 앞 절에 붙어 인쇄되어 따로 떼어지지 않은 절 (개역개정으로 존재 확인)
-KRV_SOURCE_MERGED = {("삼상", 30, 31), ("시", 72, 20)}
+    t = " ".join(out)
+    if strip_heading and "{" in t:
+        t = re.sub(r"\{[^}]*\}\s*", "", t)
+        flags.add(F_HEADING)
+    return t, flags
 
 
 def exists(abbr, c, v, src=None):
-    if src is None and (abbr, c, v) in KRV_SOURCE_MERGED:
-        return NKRV is None or (abbr, c, v) in NKRV
     return (abbr, c, v) in (src or KRV)
 
 
@@ -118,13 +126,13 @@ def check_project1(rows, psalms):
                     continue  # 앞 편 안에 포함된 특별 편(예: 야베스의 기도)
                 problems.append(f"{bk['name']} 겹침: {cur['rng']} / {nxt['rng']}")
                 continue
-            lv = last_verse(ab, ec) + (1 if (ab, ec, last_verse(ab, ec) + 1) in KRV_SOURCE_MERGED else 0)
+            lv = last_verse(ab, ec)
             expect = (ec, ev + 1) if ev < lv else (ec + 1, 1)
             if (sc, sv) != expect:
                 problems.append(f"{bk['name']} 빠진 절: {cur['rng']} 다음은 {expect[0]}:{expect[1]}이어야 하는데 {nxt['rng']}")
         (ec, ev) = bounds(mine[-1]["rng"])[1]
         lc = bx.CHAPTERS[bk["name"]]
-        lv = last_verse(ab, lc) + (1 if (ab, lc, last_verse(ab, lc) + 1) in KRV_SOURCE_MERGED else 0)
+        lv = last_verse(ab, lc)
         if (ec, ev) != (lc, lv):
             problems.append(f"{bk['name']} 마지막 편이 {lc}:{lv}까지 가지 않음 ({mine[-1]['rng']})")
     for ps in psalms:
@@ -147,8 +155,8 @@ def mixed_with_nkrv(abbr, rng, candidate):
     """붙여 넣은 본문이 개역한글과 다르고 개역개정과 같으면 혼입으로 본다."""
     if NKRV is None or not candidate:
         return False
-    k, _ = text(abbr, rng)
-    n, _ = text(abbr, rng, NKRV)
+    k, _ = text(abbr, rng, strip_heading=False)
+    n, _ = text(abbr, rng, NKRV, strip_heading=False)
     norm = lambda s: "".join((s or "").split())
     return norm(candidate) != norm(k) and norm(candidate) == norm(n)
 

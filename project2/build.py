@@ -3,7 +3,6 @@
 실행: python3 project2/build.py
 """
 import os
-import re
 import sys
 from datetime import date
 
@@ -171,11 +170,8 @@ def build(books, verses):
             "확인 표시", "WEB (영어, 확장용)"]
     header(wv, 1, cols, [6, 8, 6, 7, 13, 11, 9, 16, 10, 11, 50, 14, 7, 9, 44, 40, 50, 11, 9, 5, 8, 8, 9, 9, 16, 24, 50])
     for i, v in enumerate(verses, 2):
-        krv, flags = vb.text(v["book"]["abbr"], v["ref"])
-        if krv and "{" in krv:  # 시편 표제는 말씀 카드에서 생략
-            krv = re.sub(r"\{[^}]*\}\s*", "", krv)
-            flags.add("시편 표제 생략")
-        status = "자동 입력 · 대조 필요" if flags & {"줄바꿈 띄어쓰기 확인", "원본에서 앞 절과 붙어 인쇄됨"} else "자동 입력"
+        krv, flags = vb.text(v["book"]["abbr"], v["ref"])  # 시편 표제는 말씀 카드에서 생략
+        status = "자동 입력 · 대조 필요" if flags & vb.REVIEW else "자동 입력"
         web = vb.text(v["book"]["abbr"], v["ref"], vb.WEB)[0] if vb.WEB else None
         vals = [i - 1, f"W{i - 1:04d}", v["track"], v["no"], None, v["book"]["name"], v["ref"],
                 f"({v['disp']}, 개역한글)", v["theme"], THEME_BG[v["theme"]], krv, status if krv else "미입력"]

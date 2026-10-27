@@ -1,5 +1,5 @@
 """제작표의 참고 시트(캐릭터·교리·템플릿·절기·표기) 작성."""
-from openpyxl.styles import Alignment, PatternFill
+from openpyxl.styles import PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 
 # 이름, 집계 키워드, 구분, 주요 등장, 연령 단계, 외형(가안), 의상·소품(가안), 연기 톤, 표현 주의

@@ -1,10 +1,8 @@
 """바이럴·운영 항목: 첫 컷, 도입형 제목, 이어지는 이야기, 인물 재생목록, 통독 달력, 성과 기록, 채널 재생목록."""
 import os
 import re
-from datetime import date, timedelta
 
 from openpyxl.styles import PatternFill
-from openpyxl.worksheet.datavalidation import DataValidation
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIRST_CUT_FILE = os.path.join(ROOT, "data", "첫컷_시즌1.lst")

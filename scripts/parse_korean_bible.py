@@ -82,7 +82,15 @@ def parse(paths):
         if vs["to"]:
             for v in range(vs["v"] + 1, vs["to"] + 1):
                 out.append([vs["abbr"], vs["c"], v, text, f"merged:{vs['v']}"])
+    # 원본 PDF에서 절 번호 없이 앞 절에 붙어 인쇄된 절 (개역개정으로 존재 확인)
+    for ab, c, v in SOURCE_MERGED:
+        i = next(k for k, r in enumerate(out) if r[:3] == [ab, c, v - 1])
+        if out[i + 1][:3] != [ab, c, v]:
+            out.insert(i + 1, [ab, c, v, out[i][3], f"merged:{v - 1}"])
     return out
+
+
+SOURCE_MERGED = [("삼상", 30, 31), ("시", 72, 20)]
 
 
 if __name__ == "__main__":

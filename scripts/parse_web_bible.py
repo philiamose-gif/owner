@@ -5,16 +5,15 @@
 
 사용: python3 -I parse_web_bible.py web.pdf 출력.tsv
 """
+import os
 import re
 import sys
 
 import pdfplumber
 
-ABBR = ["창", "출", "레", "민", "신", "수", "삿", "룻", "삼상", "삼하", "왕상", "왕하", "대상", "대하",
-        "스", "느", "에", "욥", "시", "잠", "전", "아", "사", "렘", "애", "겔", "단", "호", "욜", "암",
-        "옵", "욘", "미", "나", "합", "습", "학", "슥", "말", "마", "막", "눅", "요", "행", "롬", "고전",
-        "고후", "갈", "엡", "빌", "골", "살전", "살후", "딤전", "딤후", "딛", "몬", "히", "약", "벧전",
-        "벧후", "요일", "요이", "요삼", "유", "계"]
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # -I 실행에서도 같은 폴더 모듈 사용
+from parse_korean_bible import ABBR  # noqa: E402
+
 ENG = ["Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth", "1 Samuel",
        "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra", "Nehemiah", "Esther", "Job",
        "Psalms", "Proverbs", "Ecclesiastes", "Song of Solomon", "Isaiah", "Jeremiah", "Lamentations", "Ezekiel",
