@@ -14,7 +14,7 @@ python3 scripts/build_all.py
 
 - 프로젝트1 (성경 애니메이션): `data/0*.txt`(분할), `data/시즌1_선정.lst`, `data/첫컷_시즌1.lst`, `data/시편시리즈.psa` → `scripts/build_xlsx.py`(+ `season.py`, `psalms.py`, `extras.py`, `sheets_ref.py`) → `성경애니메이션_제작표.xlsx`
 - 프로젝트2 (5분 성경읽기): `reference/krv.tsv`에서 자동 분할 → `project2/build.py` → `project2/5분성경읽기_제작표.xlsx` (`--tts`로 편별 TTS 대본 `project2/tts/`, git 제외)
-- 역본: `reference/krv.tsv`(개역한글), `reference/web.tsv`(World English Bible), `reference/private/nkrv.tsv`(개역개정, 저작권 보호라 git 제외 — 새 세션에서는 사용자가 다시 올려야 함). 변환 스크립트 `scripts/parse_korean_bible.py`, `scripts/parse_web_bible.py`. 검수 `scripts/verify_bible.py`.
+- 역본: `reference/krv.tsv`(개역한글), `reference/web.tsv`(World English Bible), `reference/private/nkrv.tsv`(개역개정, 저작권 보호라 git 제외 — 새 세션에서는 사용자가 다시 올려야 함). 변환 스크립트 `scripts/parse_korean_bible.py`(개역한글은 `--ref reference/private/nkrv.tsv`로 같은 절의 개역개정 띄어쓰기를 참고해 줄바꿈 자리를 보정, 남은 자리는 'break:낱말' 표시), `scripts/parse_web_bible.py`. 검수 `scripts/verify_bible.py`.
 
 ## 확정된 결정 (사용자 승인)
 

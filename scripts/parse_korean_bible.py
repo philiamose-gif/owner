@@ -1,14 +1,17 @@
 """개역한글·개역개정 PDF 텍스트(pdftotext)를 구절 단위 TSV로 변환.
 
 출력 열: 약어, 장, 절, 본문, 확인필요
-- 확인필요 'break': 줄이 바뀌는 곳의 띄어쓰기를 확실히 정하지 못한 구절. PDF에는 줄 끝 띄어쓰기
+- 확인필요 'break:낱말 낱말/…': 줄이 바뀌는 곳의 띄어쓰기를 확실히 정하지 못한 구절. PDF에는 줄 끝 띄어쓰기
   정보가 없어서 성경 전체에서 같은 표현이 쓰인 방식으로 추정했으므로, 사용 전에 원본 PDF와 대조.
+  ':' 뒤는 정하지 못한 자리(현재 띄어쓰기 그대로).
 - 확인필요 'merged:N': 원본 PDF에서 N절과 합쳐 인쇄된 절 (예: 신6:18-19).
 
-사용: python3 -I parse_korean_bible.py 입력.txt [입력2.txt ...] 출력.tsv
+사용: python3 -I parse_korean_bible.py 입력.txt [입력2.txt ...] [--ref 다른역본.tsv] 출력.tsv
+  --ref: 같은 절을 다른 역본(개역개정)에서 찾아, 줄바꿈 자리의 낱말이 그 역본에서 띄어 썼는지 붙여 썼는지로 한 번 더 판단
 """
 import re
 import sys
+from functools import lru_cache
 
 ABBR = ["창", "출", "레", "민", "신", "수", "삿", "룻", "삼상", "삼하", "왕상", "왕하", "대상", "대하",
         "스", "느", "에", "욥", "시", "잠", "전", "아", "사", "렘", "애", "겔", "단", "호", "욜", "암",
@@ -34,7 +37,7 @@ def read_lines(paths):
                 yield line
 
 
-def parse(paths):
+def parse(paths, ref=None):
     lines = list(read_lines(paths))
     # 1) 구절별 조각(줄 단위) 모으기
     verses, cur = [], None
@@ -57,6 +60,7 @@ def parse(paths):
     # 2) 줄 안 문장(줄바꿈과 무관한 부분)을 말뭉치로 삼아 띄어쓰기 추정
     corpus = "\n".join(HEADING.sub("", p) for vs in verses for p in vs["parts"])
 
+    @lru_cache(maxsize=None)
     def glue_or_space(a, b):
         """(이어 쓸 문자, 확실한지). 같은 표현이 줄 안에서 3배 이상 한쪽으로 쓰였으면 확실한 것으로 본다."""
         for level, (x, y) in enumerate(((a, b), (a[-2:], b[:2]), (a[-1:], b[:2]), (a[-1:], b[:1]))):
@@ -70,13 +74,17 @@ def parse(paths):
     for vs in verses:
         parts = [HEADING.sub("", p).strip() for p in vs["parts"] if p.strip()]
         text = parts[0] if parts else ""
-        unsure = False
+        spots = []
         for nxt in parts[1:]:
             a = text.split()[-1] if text.split() else ""
-            sep, sure = glue_or_space(a, nxt.split()[0])
-            unsure |= not sure
+            b = nxt.split()[0]
+            sep, sure = glue_or_space(a, b)
+            if not sure and ref:
+                sep, sure = ref_vote(a, b, ref.get((vs["abbr"], vs["c"], vs["v"]), ("",))[0], sep)
+            if not sure:
+                spots.append(f"{a}{sep}{b}")
             text = text + sep + nxt
-        flag = "break" if unsure else ""
+        flag = "break:" + "/".join(spots) if spots else ""
         text = re.sub(r"\s+", " ", text).strip()
         out.append([vs["abbr"], vs["c"], vs["v"], text, flag])
         if vs["to"]:
@@ -93,9 +101,34 @@ def parse(paths):
 SOURCE_MERGED = [("삼상", 30, 31), ("시", 72, 20)]
 
 
+def ref_vote(a, b, other, sep):
+    """다른 역본의 같은 절에서 'a b'(띄움)와 'ab'(붙임) 중 하나만 보이면 그쪽으로 확정."""
+    if not other or not a:
+        return sep, False
+    spaced = re.search(rf"(^|\s){re.escape(a)}\s+{re.escape(b)}", other)
+    glued = re.search(rf"(^|\s){re.escape(a + b)}", other)
+    if bool(spaced) != bool(glued):
+        return (" " if spaced else ""), True
+    return sep, False
+
+
+def load_ref(path):
+    d = {}
+    for line in open(path, encoding="utf-8"):
+        p = line.rstrip("\n").split("\t")
+        d[(p[0], int(p[1]), int(p[2]))] = (p[3],)
+    return d
+
+
 if __name__ == "__main__":
-    *src, dst = sys.argv[1:]
-    rows = parse(src)
+    args = sys.argv[1:]
+    ref = None
+    if "--ref" in args:
+        k = args.index("--ref")
+        ref = load_ref(args[k + 1])
+        del args[k:k + 2]
+    *src, dst = args
+    rows = parse(src, ref)
     with open(dst, "w", encoding="utf-8") as fp:
         for r in rows:
             fp.write("\t".join(map(str, r)) + "\n")

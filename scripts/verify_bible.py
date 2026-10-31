@@ -78,7 +78,7 @@ def text(abbr, rng, src=None, strip_heading=True):
             if fl.startswith("merged") or PLACEHOLDER.fullmatch(t):
                 flags.add(F_MERGED)
                 continue
-            if fl == "break":
+            if fl.startswith("break"):
                 flags.add(F_BREAK)
             out.append(t)
     t = " ".join(out)

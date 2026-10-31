@@ -159,6 +159,16 @@ def pause_marks(t):
     return t + ("." if t[-1:] in SENTENCE_END else ",")
 
 
+def spots_text(book, ref):
+    """원본과 대조할 자리만: '1:14 일 자와 / 1:30 식물로 주노라' (현재 띄어쓰기 그대로 표시)"""
+    out = []
+    for k in vb.verses_in(book["abbr"], ref):
+        fl = vb.KRV[k][1]
+        if fl.startswith("break:"):
+            out += [f"{k[1]}:{k[2]} {sp}" for sp in fl[6:].split("/")]
+    return f"띄어쓰기 {len(out)}곳: " + " / ".join(out) if out else ""
+
+
 def load():
     books = bx.load()[0]
     segs = []
@@ -278,7 +288,7 @@ def build(books, segs):
     wr = wb.create_sheet("읽기목록")
     cols = ["순번", "코드", "트랙", "트랙 회차", "일차", "업로드일", "요일", "하루 순서", "업로드 시간", "책", "본문 범위",
             "절 수", "장 수", "음절 수", "예상 낭독(초)", "예상 낭독", "영상 길이", "끊은 곳", "제목안", "해시태그",
-            "설명란 문구", "본문 상태", "확인 표시", "화면 배경", "TTS 대본 (개역한글)", "TTS 음성", "영상", "업로드",
+            "설명란 문구", "본문 상태", "대조할 곳", "화면 배경", "TTS 대본 (개역한글)", "TTS 음성", "영상", "업로드",
             "조회수", "평균 시청률(%)", "비고"]
     header(wr, 1, cols, [6, 8, 6, 7, 6, 11, 5, 6, 8, 10, 30, 6, 6, 7, 8, 8, 8, 8, 44, 40, 44, 16, 22, 26, 60,
                          8, 8, 8, 8, 9, 16])
@@ -290,7 +300,7 @@ def build(books, segs):
                 11: s["title"], 12: s["verses"], 13: s["chapters"],
                 14: s["syl"],
                 18: "책 전체" if s["whole_book"] else s["cut"], 22: status,
-                23: ", ".join(sorted(flags - {vb.F_HEADING})), 24: f"{GENRE_BG[b['genre']]}: {BACKGROUNDS[GENRE_BG[b['genre']]]}",
+                23: spots_text(b, s["ref"]) or ", ".join(sorted(flags - {vb.F_HEADING})), 24: f"{GENRE_BG[b['genre']]}: {BACKGROUNDS[GENRE_BG[b['genre']]]}",
                 25: s["tts"], 26: "미착수", 27: "미착수", 28: "미착수"}
         for j, val in vals.items():
             wr.cell(row=i, column=j, value=val)
