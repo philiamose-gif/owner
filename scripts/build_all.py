@@ -12,7 +12,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUTS = [
     ("프로젝트1", os.path.join(ROOT, "scripts", "build_xlsx.py"), os.path.join(ROOT, "성경애니메이션_제작표.xlsx")),
-    ("프로젝트2", os.path.join(ROOT, "project2", "build.py"), os.path.join(ROOT, "project2", "말씀숏폼_제작표.xlsx")),
+    ("프로젝트2", os.path.join(ROOT, "project2", "build.py"), os.path.join(ROOT, "project2", "5분성경읽기_제작표.xlsx")),
 ]
 
 

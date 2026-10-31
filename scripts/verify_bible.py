@@ -31,6 +31,7 @@ KRV, WEB, NKRV = load("krv.tsv"), load("web.tsv"), load("private/nkrv.tsv")
 # 확인 표시 — 이 중 하나라도 있으면 원본 PDF와 대조
 F_BREAK, F_MERGED, F_HEADING = "줄바꿈 띄어쓰기 확인", "앞 절과 합쳐 인쇄됨", "시편 표제 생략"
 REVIEW = {F_BREAK, F_MERGED}
+PLACEHOLDER = re.compile(r"\(\d+절에 포함되어 있음\)")  # 원본이 앞 절과 합쳐 인쇄한 자리
 
 
 def last_index(src):
@@ -74,7 +75,7 @@ def text(abbr, rng, src=None, strip_heading=True):
             if (abbr, c, v) not in src:
                 return None, {"없는 절"}
             t, fl = src[(abbr, c, v)]
-            if fl.startswith("merged"):
+            if fl.startswith("merged") or PLACEHOLDER.fullmatch(t):
                 flags.add(F_MERGED)
                 continue
             if fl == "break":
@@ -142,12 +143,22 @@ def check_project1(rows, psalms):
     return problems
 
 
-def check_project2(verses):
-    problems = []
-    for v in verses:
-        t, flags = text(v["book"]["abbr"], v["ref"])
-        if t is None:
-            problems.append(f"프로젝트2 {v['disp']} 없음 (개역한글)")
+def verses_in(abbr, rng):
+    (c1, v1), (c2, v2) = bounds(rng)
+    return [(abbr, c, v) for c in range(c1, c2 + 1)
+            for v in range(v1 if c == c1 else 1, (v2 if c == c2 else last_verse(abbr, c)) + 1)]
+
+
+def check_project2(segs):
+    """5분 읽기 분할이 개역한글 전체를 순서대로 한 번씩 빠짐없이 덮는지."""
+    problems, seen = [], []
+    for sg in segs:
+        if text(sg["book"]["abbr"], sg["ref"])[0] is None:
+            problems.append(f"프로젝트2 {sg['disp']} 없는 절 포함 (개역한글)")
+        seen += verses_in(sg["book"]["abbr"], sg["ref"])
+    if seen != list(KRV):
+        miss, dup = set(KRV) - set(seen), len(seen) - len(set(seen))
+        problems.append(f"프로젝트2 성경 전체 순서 불일치: 빠진 절 {len(miss)} · 중복 {dup}")
     return problems
 
 
@@ -173,10 +184,10 @@ if __name__ == "__main__":
     season.assign(rows)
     ps = psa.load(rows)
     import build as p2
-    _, verses = p2.load()
-    probs = check_project1(rows, ps) + check_project2(verses)
+    _, segs = p2.load()
+    probs = check_project1(rows, ps) + check_project2(segs)
     print(f"개역한글 {len(KRV)}절 / WEB {len(WEB) if WEB else '없음'} / 개역개정 {len(NKRV) if NKRV else '없음(검수용, 선택)'}")
-    print(f"검사: 프로젝트1 {len(rows)}편 + 시편 {len(ps)}편, 프로젝트2 {len(verses)}구절")
+    print(f"검사: 프로젝트1 {len(rows)}편 + 시편 {len(ps)}편, 프로젝트2 {len(segs)}편(성경 전체)")
     for p in probs:
         print("확인 필요:", p)
     print("문제 없음" if not probs else f"확인 필요 {len(probs)}건")
