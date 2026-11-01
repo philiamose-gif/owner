@@ -92,13 +92,17 @@ def annotate(rows):
         r["spectacle"] = f"후보 ({', '.join(h.strip() for h in hits[:3])})" if hits else ""
 
 
-def highlight(rows):
-    """묶음의 대표 훅: 시즌1(이목을 끄는 편) 중 숫자형·반전형 훅을 먼저, 없으면 시즌1 첫 편, 그다음 첫 편."""
+def highlight_row(rows):
+    """묶음의 대표 편: 시즌1(이목을 끄는 편) 중 숫자형·반전형 훅을 먼저, 없으면 시즌1 첫 편, 그다음 첫 편."""
     for cond in (lambda r: r["season"] == 1 and r["hook_type"] in ("숫자형", "사실·반전형"),
                  lambda r: r["season"] == 1, lambda r: True):
         hit = [r for r in rows if cond(r)]
         if hit:
-            return hit[0]["hook"]
+            return hit[0]
+
+
+def highlight(rows):
+    return highlight_row(rows)["hook"]
 
 
 def span_label(rows):
@@ -284,3 +288,75 @@ def playlist_sheet(wb, f, header, body, books, last, psa_n, n_long, n_b, psa_lon
             ws.cell(row=k, column=j, value=v)
     body(ws, 5, 4 + len(items), len(cols), center_cols=(2, 3))
     ws.freeze_panes = "A5"
+
+
+def summary_minutes(chapters):
+    """책별 요약 편 길이(분): 짧은 책은 짧게, 큰 책도 8분 안 (벤치마킹: 책별 요약 애니 7~12분)"""
+    return 3 if chapters <= 5 else 5 if chapters <= 20 else 7 if chapters <= 40 else 8
+
+
+def book_summary_sheet(wb, f, header, body, title_block, books, rows, chapters, last, STATUS):
+    """책별 '한눈에 보는 ○○' 요약 편 (BibleProject형). 그 책의 첫 편 공개 전날 올려 예고편 역할."""
+    from openpyxl.worksheet.datavalidation import DataValidation
+    ws = wb.create_sheet("책별_요약")
+    A = lambda c: f"'A타입_제작표'!${c}$2:${c}${last}"
+    title_block(ws, "책별 요약 편 (한눈에 보는 ○○)",
+                "책 한 권의 흐름을 몇 분에 보여 주는 요약 애니. 내레이션은 새로 쓰고 교리감수 필수. 그 책 첫 편 공개 전날 올림")
+    cols = ["순번", "책", "구약/신약", "장르", "장 수", "A 편수", "흐름 (통합본 B 순서)", "그리스도 연결점", "핵심 교리",
+            "대표 구절", "대표 구절 본문 (개역한글)", "제목안", "목표 길이(분)", "공개 예정일", "주의",
+            "대본", "교리감수", "영상", "업로드", "조회수"]
+    header(ws, 4, cols, [6, 12, 8, 8, 6, 7, 50, 50, 36, 12, 50, 56, 8, 12, 30, 8, 8, 8, 8, 9])
+    for k, bk in enumerate(books, 5):
+        mine = [r for r in rows if r["book"] is bk]
+        flow = list(dict.fromkeys(id(r["b"]) for r in mine))
+        bs_seen = [next(r["b"] for r in mine if id(r["b"]) == i) for i in flow]
+        pick = highlight_row(mine)
+        ch = chapters[bk["name"]]
+        vals = [k - 4, bk["name"], bk["testament"], bk["genre"], ch, f"=COUNTIF({A('I')},B{k})",
+                " → ".join(b["title"] for b in bs_seen),
+                "\n".join(dict.fromkeys(b["christ"] for b in bs_seen)),
+                " / ".join(dict.fromkeys(b["doctrine"] for b in bs_seen[:2])),
+                pick["kv"], pick.get("kv_text", ""),
+                f"한눈에 보는 {bk['name']} | {pick['hook']} | {ch}{'편' if bk['name'] == '시편' else '장'}을 {summary_minutes(ch)}분에",
+                summary_minutes(ch)]
+        for j, v in enumerate(vals, 1):
+            ws.cell(row=k, column=j, value=v)
+        ws.cell(row=k, column=14, value=f"=_xlfn.MINIFS({A('U')},{A('I')},B{k})-1").number_format = "yyyy-mm-dd"
+        ws.cell(row=k, column=15, value="; ".join(dict.fromkeys(b["note"] for b in bs_seen if b["note"])))
+        for j in (16, 17, 18, 19):
+            ws.cell(row=k, column=j, value="미착수")
+    n = len(books) + 4
+    body(ws, 5, n, len(cols), center_cols=(1, 2, 3, 4, 5, 6, 10, 13, 14, 16, 17, 18, 19, 20))
+    ws.freeze_panes = "C5"
+    dv = DataValidation(type="list", formula1=STATUS, allow_blank=True)
+    dv.add(f"P5:S{n}")
+    ws.add_data_validation(dv)
+
+
+def full_compilation_sheet(wb, f, header, body, title_block, last, P, STATUS):
+    """시즌1·2가 모두 끝난 뒤 올리는 구약·신약·성경 전체 몰아보기 (벤치마킹: 성경동화 전체 몰아보기 11시간 267만)."""
+    from openpyxl.worksheet.datavalidation import DataValidation
+    ws = wb.create_sheet("전체_몰아보기")
+    A = lambda c: f"'A타입_제작표'!${c}$2:${c}${last}"
+    title_block(ws, "전체 몰아보기", "모든 A편 공개 다음 날 올림. 유튜브 한 영상 최대 12시간 안. 오디오판(화면 어둡게)도 함께")
+    cols = ["순번", "묶음", "A 편수", "예상 길이(시간)", "12시간 이내", "제목안", "오디오판 제목안", "공개 가능일",
+            "영상", "업로드", "조회수"]
+    header(ws, 4, cols, [6, 12, 8, 10, 10, 64, 60, 12, 8, 8, 9])
+    items = [("구약 전체", f"=COUNTIF({A('D')},\"구약\")", "창세기부터 말라기까지"),
+             ("신약 전체", f"=COUNTIF({A('D')},\"신약\")", "마태복음부터 요한계시록까지"),
+             ("성경 전체", f"=COUNTA({A('B')})", "창세기부터 요한계시록까지")]
+    for k, (name, cnt, rng) in enumerate(items, 5):
+        for j, v in enumerate([k - 4, name, cnt], 1):
+            ws.cell(row=k, column=j, value=v)
+        ws.cell(row=k, column=4, value=(f"=ROUND((C{k}*{P['롱폼에 넣는 A 1편 길이(초)']}"
+                                        f"+{P['롱폼 인트로+아웃트로+연결(초)']})/3600,1)"))
+        ws.cell(row=k, column=5, value=f"=IF(D{k}<=12,\"예\",\"나눠 올림\")")
+        ws.cell(row=k, column=6, value=f"{name} 몰아보기 | {rng} 한 번에 | 성경 애니메이션")
+        ws.cell(row=k, column=7, value=f"잠잘 때 듣는 {name} 이야기 | {rng} | 성경 애니메이션 오디오판")
+        ws.cell(row=k, column=8, value=f"=MAX({A('U')})+1").number_format = "yyyy-mm-dd"
+        for j in (9, 10):
+            ws.cell(row=k, column=j, value="미착수")
+    body(ws, 5, 7, len(cols), center_cols=(1, 2, 3, 4, 5, 8, 9, 10, 11))
+    dv = DataValidation(type="list", formula1=STATUS, allow_blank=True)
+    dv.add("I5:J7")
+    ws.add_data_validation(dv)

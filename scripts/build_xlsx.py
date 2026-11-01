@@ -359,6 +359,8 @@ def build(books, bs, rows, groups, psalms, verify_problems=None):
         ("롱폼_시즌별", "시즌 중 올릴 롱폼: 시즌·트랙별 묶음, 공개 예정일"),
         ("롱폼_통합본", "성경 순서 롱폼 84편: 그리스도 연결점, 핵심 교리"),
         ("인물_모아보기", "인물별 이야기 모아보기 롱폼 22편과 잠잘 때 듣는 오디오판 제목 (모든 편 공개 다음 날)"),
+        ("책별_요약", "66권 '한눈에 보는 ○○' 요약 편 3~8분: 흐름·그리스도 연결점·대표 구절 (그 책 첫 편 공개 전날)"),
+        ("전체_몰아보기", "시즌1·2 완료 후 구약·신약·성경 전체 몰아보기와 오디오판"),
         ("시편_시리즈", "시편 150편 전체(본편과 별도 제작): 핵심 구절, 메시지, 저자·표제, 업로드일"),
         ("시편_롱폼", "시편 시리즈 롱폼 15편"),
         ("통독챌린지", "날짜별 구약·신약·시편 본문 달력 (교회·소그룹 배포용)"),
@@ -579,6 +581,8 @@ def build(books, bs, rows, groups, psalms, verify_problems=None):
     extras.kpi_sheet(wb, f, header, body, last, P, 80)
     extras.playlist_sheet(wb, f, header, body, books, last, len(psalms) + 1, n_long, n_b, len(psa.LONGS) + 1)
     extras.character_sheet(wb, f, header, body, title_block, rows, last, P, STATUS)
+    extras.book_summary_sheet(wb, f, header, body, title_block, books, rows, CHAPTERS, last, STATUS)
+    extras.full_compilation_sheet(wb, f, header, body, title_block, last, P, STATUS)
 
     # ===== 8~ 참고 시트 =====
     from sheets_ref import characters, doctrine, templates, seasons, terms
@@ -607,6 +611,8 @@ def checks_sheet(wb, books, rows, groups, last, n_long, A, P, psalms, verify_pro
     s1 = sum(1 for x in rows if x["season"] == 1)
     items = [
         ("숏폼 총 편수", f"=COUNTA({A('B')})", n),
+        ("책별 요약 편 (66권)", "=COUNTA('책별_요약'!$B$5:$B$70)", 66),
+        ("전체 몰아보기 중 12시간을 넘는 묶음", "=COUNTIF('전체_몰아보기'!$E$5:$E$7,\"나눠 올림\")", 0),
         ("시즌1 편수", f"=COUNTIF({A('C')},1)", s1),
         ("시즌2 편수", f"=COUNTIF({A('C')},2)", n - s1),
         ("시즌1 + 시즌2 (전체와 같아야 함)", f"=COUNTIF({A('C')},1)+COUNTIF({A('C')},2)", f"=COUNTA({A('B')})"),
