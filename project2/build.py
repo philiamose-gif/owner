@@ -36,6 +36,8 @@ f, header, body, section, table = bx.f, bx.header, bx.body, bx.section, bx.table
 C_INPUT, C_SUB, BORDER = bx.C_INPUT, bx.C_SUB, bx.BORDER
 STATUS = bx.STATUS
 SLOTS = ["06:00", "08:00", "12:00", "15:00", "19:00", "21:00"]  # 하루 업로드 시간 (17시 전후는 프로젝트1)
+SITUATIONS = ["새벽", "출근길", "점심", "오후", "퇴근길", "잠들기 전"]  # 시간대별 제목 앞 상황어 (벤치마킹: 상황형 제목)
+PART_MAX = 2 * 3600  # 책 전체듣기 묶음 한 편 최대 길이 (긴 책은 1부·2부…로 나눔)
 
 # 장르 → 화면 배경 (사람 얼굴·하나님 형상 없이 풍경과 빛, 본문 자막이 잘 보이게 어둡고 단순하게)
 BACKGROUNDS = {
@@ -169,6 +171,60 @@ def spots_text(book, ref):
     return f"띄어쓰기 {len(out)}곳: " + " / ".join(out) if out else ""
 
 
+def bundle_list(books, segs):
+    """5분 편을 이어 붙인 묶음 영상 목록 (순번은 1부터, segs 순서 그대로).
+    긴 책은 2시간 이하로 1부·2부…, 20분이 안 되는 짧은 책은 같은 트랙의 이웃한 짧은 책과 묶음."""
+    no = {id(s): k for k, s in enumerate(segs, 1)}
+    by_book = [(b, [s for s in segs if s["book"] is b]) for b in books]
+    groups, short = [], []
+    for b, mine in by_book:
+        if sum(s["sec"] for s in mine) < 20 * 60:
+            if short and short[-1][0]["testament"] != b["testament"]:
+                groups.append(short)
+                short = []
+            short.append((b, mine))
+            continue
+        if short:
+            groups.append(short)
+            short = []
+        groups.append([(b, mine)])
+    if short:
+        groups.append(short)
+
+    def span(part):
+        b = part[0]["book"]
+        (c1, v1), _ = vb.bounds(part[0]["ref"])
+        _, (c2, v2) = vb.bounds(part[-1]["ref"])
+        return disp_ko(b, c1, v1, c2, v2)
+
+    out = []
+    for g in groups:
+        if len(g) > 1:  # 짧은 책 여러 권
+            names = "·".join(b["name"] for b, _ in g) if len(g) <= 3 else f"{g[0][0]['name']}~{g[-1][0]['name']}"
+            allseg = [s for _, m in g for s in m]
+            out.append(dict(kind="책 전체듣기", first=no[id(allseg[0])], last=no[id(allseg[-1])], span=names + " 전체",
+                            title=f"잠자며 듣는 {names} 전체 | 개역한글 성경듣기 · 읽어주는성경 · 성경낭독"))
+            continue
+        b, mine = g[0]
+        n = math.ceil(sum(x["sec"] for x in mine) / PART_MAX)  # 1부·2부… 길이를 고르게
+        target, acc, parts, cur = sum(x["sec"] for x in mine) / n, 0, [], []
+        for s in mine:
+            if cur and len(parts) < n - 1 and acc + s["sec"] / 2 > target * (len(parts) + 1):
+                parts.append(cur)
+                cur = []
+            cur.append(s)
+            acc += s["sec"]
+        parts.append(cur)
+        for k, part in enumerate(parts, 1):
+            tag = f" {k}부" if len(parts) > 1 else ""
+            out.append(dict(kind="책 전체듣기", first=no[id(part[0])], last=no[id(part[-1])], span=span(part),
+                            title=f"잠자며 듣는 {b['name']} 전체{tag} | 개역한글 성경듣기 · 읽어주는성경 · 성경낭독"))
+    gos = [s for s in segs if s["book"]["name"] in ("마태복음", "마가복음", "누가복음", "요한복음")]
+    out.append(dict(kind="큰 묶음", first=no[id(gos[0])], last=no[id(gos[-1])], span="마태복음~요한복음",
+                    title="잠자며 듣는 4복음서 전체 | 예수님의 생애 | 개역한글 성경듣기 · 성경낭독"))
+    return out
+
+
 def load():
     books = bx.load()[0]
     segs = []
@@ -231,7 +287,8 @@ def build(books, segs):
         ("장 안내·쉼 (초/장)", CHAPTER_SEC, "'창세기 1장' 안내와 장 사이 쉼"),
         ("인트로 (초)", 5, "시그니처 소리 + '5분 성경읽기, 창세기 1장' 화면"),
         ("마무리 (초)", 5, "출처(개역한글) 표시 + 다음 편 안내 화면"),
-    ] + [(f"업로드 시간 {k}", t, "하루 안의 순서대로 사용 (구약 먼저, 신약 나중)") for k, t in enumerate(SLOTS, 1)]
+    ] + [(f"업로드 시간 {k}", t, "하루 안의 순서대로 사용 (구약 먼저, 신약 나중)") for k, t in enumerate(SLOTS, 1)] \
+      + [(f"상황어 {k}", t, f"업로드 시간 {k} 영상 제목 맨 앞에 붙는 말 (예: '{t} 5분 | 창세기 1장')") for k, t in enumerate(SITUATIONS, 1)]
     prow = {}
     for label, val, note in params:
         ws.cell(row=r, column=1, value=label).font = f(True)
@@ -246,6 +303,7 @@ def build(books, segs):
         r += 1
     P = {k: f"'안내'!$C${v}" for k, v in prow.items()}
     slot_range = f"'안내'!$C${prow['업로드 시간 1']}:$C${prow[f'업로드 시간 {len(SLOTS)}']}"
+    sit_range = f"'안내'!$C${prow['상황어 1']}:$C${prow[f'상황어 {len(SITUATIONS)}']}"
 
     r = section(ws, r + 1, "전체 규모 (자동 계산)", 4)
     for label, formula, unit, fmt in [
@@ -310,9 +368,10 @@ def build(books, segs):
         wr.cell(row=i, column=15, value=f"=ROUND(N{i}/{P['낭독 속도 (음절/분)']}*60+M{i}*{P['장 안내·쉼 (초/장)']},0)")
         wr.cell(row=i, column=16, value=f"=TEXT(O{i}/86400,\"m:ss\")")
         wr.cell(row=i, column=17, value=f"=TEXT((O{i}+{P['인트로 (초)']}+{P['마무리 (초)']})/86400,\"m:ss\")")
-        wr.cell(row=i, column=19, value=f"={P['시리즈 이름(가칭)']}&\" | {s['title']}\"")
+        wr.cell(row=i, column=19, value=(
+            f"=INDEX({sit_range},H{i})&\" 5분 | {s['title']} | \"&{P['시리즈 이름(가칭)']}&\" · 개역한글 성경듣기\""))
         wr.cell(row=i, column=20, value=(
-            f"=\"#\"&SUBSTITUTE({P['시리즈 이름(가칭)']},\" \",\"\")&\" #성경읽기 #성경통독 #{b['name']} #개역한글\""))
+            f"=\"#\"&SUBSTITUTE({P['시리즈 이름(가칭)']},\" \",\"\")&\" #성경읽기 #성경듣기 #읽어주는성경 #성경낭독 #성경통독 #{b['name']} #개역한글\""))
         wr.cell(row=i, column=21, value=f"{s['title']} (개역한글)\n성경 본문: 개역한글판 · 낭독: AI 음성")
     body(wr, 2, last, len(cols), center_cols=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 22, 26, 27, 28, 29, 30))
     for i, s in enumerate(segs, 2):
@@ -347,6 +406,35 @@ def build(books, segs):
         wd.cell(row=i, column=7, value=f"=ROUND(SUMIF({R('E')},A{i},{R('O')})/60,0)")
     body(wd, 2, TARGET_DAYS + 1, 7, center_cols=(1, 2, 3, 4, 7))
     wd.freeze_panes = "B2"
+
+    # ===== 묶음영상 =====
+    bundles = bundle_list(books, segs)
+    wm = wb.create_sheet("묶음영상")
+    bx.title_block(wm, "묶음 영상 (5분 편 재가공)",
+                   "이미 만든 5분 편을 이어 붙여 긴 영상으로 다시 올림. 새 TTS 없이 시청 시간을 늘리는 용도 (벤치마킹: 잠자며 듣는 전체듣기)")
+    header(wm, 4, ["번호", "종류", "제목안", "포함 범위", "첫 순번", "끝 순번", "편수", "길이(분)", "공개 가능일", "배경음악", "영상", "업로드", "조회수"],
+           [6, 12, 70, 40, 7, 7, 6, 8, 12, 14, 8, 8, 9])
+    for k, bd in enumerate(bundles, 5):
+        a, z = bd["first"], bd["last"]
+        crit = f"{R('A')},\">={a}\",{R('A')},\"<={z}\""
+        vals = [k - 4, bd["kind"], bd["title"], bd["span"], a, z, z - a + 1]
+        for j, v in enumerate(vals, 1):
+            wm.cell(row=k, column=j, value=v)
+        wm.cell(row=k, column=8, value=f"=ROUND(SUMIFS({R('O')},{crit})/60,0)")
+        wm.cell(row=k, column=9, value=f"=_xlfn.MAXIFS({R('F')},{crit})+1").number_format = "yyyy-mm-dd"
+        wm.cell(row=k, column=10, value="있는 판 + 없는 판")
+        wm.cell(row=k, column=11, value="미착수")
+        wm.cell(row=k, column=12, value="미착수")
+    mlast = len(bundles) + 4
+    body(wm, 5, mlast, 13, center_cols=(1, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13))
+    for k in range(5, mlast + 1):
+        wm.cell(row=k, column=13).fill = PatternFill("solid", fgColor=C_INPUT)
+    wm.freeze_panes = "C5"
+    dv3 = DataValidation(type="list", formula1=STATUS, allow_blank=True)
+    dv3.add(f"K5:L{mlast}")
+    wm.add_data_validation(dv3)
+    book_rows = f"'묶음영상'!$B$5:$B${mlast}"
+    book_cnt = f"'묶음영상'!$G$5:$G${mlast}"
 
     # ===== 권별점검 =====
     wk = wb.create_sheet("권별점검")
@@ -384,6 +472,7 @@ def build(books, segs):
         ("트랙 회차 중복", f"=SUMPRODUCT((COUNTIFS({R('C')},{R('C')},{R('D')},{R('D')})>1)*1)", 0),
         ("6개월(182일) 안에 끝나는가 (1 = 예)", f"=IF(MAX({R('F')})-{P['시작일']}+1<=182,1,0)", 1),
         ("TTS 대본이 비어 있는 편", f"=COUNTBLANK({R('Y')})", 0),
+        ("책 전체듣기 묶음에 빠지거나 겹친 편 (묶음 편수 합 - 전체)", f"=SUMIF({book_rows},\"책 전체듣기\",{book_cnt})-COUNTA({R('B')})", 0),
     ]
     r = section(wc, 4, "점검 항목", 4)
     for j, t in enumerate(["항목", "현재 값", "기대 값", "결과"], 1):
