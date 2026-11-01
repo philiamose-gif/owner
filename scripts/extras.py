@@ -8,17 +8,24 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIRST_CUT_FILE = os.path.join(ROOT, "data", "첫컷_시즌1.lst")
 FIRST_CUT_DEFAULT = "대본 작성 시 확정 (원칙: 가장 강한 장면을 먼저 1~2초)"
 
-# 인물별 재생목록: (이름, 찾을 이름들, 구약/신약)
+# 인물별 재생목록: (이름, 찾을 이름들, 구약/신약[, 이 책들에서만 — 학개·스가랴의 대제사장 여호수아 같은 동명이인 제외])
 ARCS = [
     ("노아", ("노아",), "구약"), ("아브라함", ("아브라함", "아브람"), "구약"),
     ("야곱", ("야곱",), "구약"), ("요셉", ("요셉",), "구약"), ("모세", ("모세",), "구약"),
-    ("여호수아", ("여호수아",), "구약"), ("기드온", ("기드온",), "구약"), ("삼손", ("삼손",), "구약"),
+    ("여호수아", ("여호수아",), "구약", ("출애굽기", "민수기", "신명기", "여호수아")),
+    ("기드온", ("기드온",), "구약"), ("삼손", ("삼손",), "구약"),
     ("룻", ("룻",), "구약"), ("사무엘", ("사무엘",), "구약"), ("사울", ("사울",), "구약"),
     ("다윗", ("다윗",), "구약"), ("솔로몬", ("솔로몬",), "구약"), ("엘리야", ("엘리야",), "구약"),
     ("엘리사", ("엘리사",), "구약"), ("에스더", ("에스더",), "구약"), ("욥", ("욥",), "구약"),
     ("다니엘", ("다니엘",), "구약"), ("요나", ("요나",), "구약"),
     ("세례 요한", ("세례 요한",), "신약"), ("베드로", ("베드로",), "신약"), ("바울", ("바울", "사울"), "신약"),
 ]
+
+
+# 명장면 쇼츠(15~20초) 후보를 고르는 장면 단어 — 벤치마킹: 기적·스펙터클 장면만 짧게 뽑은 쇼츠가 수천만 회
+SPECTACLE = ("홍해", "바다", "홍수", "방주", "불기둥", "불꽃", "불이 ", "불병거", "사자", "풀무", "거인", "골리앗",
+             "여리고", "성벽", "재앙", "폭풍", "물 위", "물고기", "떨기나무", "번개", "지진", "만나를", "반석", "해가 머",
+             "병거", "부활")
 
 
 def load_first_cuts(rows):
@@ -74,12 +81,74 @@ def annotate(rows):
         r["hook_type"] = hook_type(r["hook"])
         r["chapter"] = chapter_label(r)
         found = []
-        for arc, keys, testament in ARCS:
-            if r["book"]["testament"] != testament:
+        for arc, keys, testament, *only in ARCS:
+            if r["book"]["testament"] != testament or (only and r["book"]["name"] not in only[0]):
                 continue
             if any(k == n or n.startswith(k + "(") for k in keys for n in names(r)):
                 found.append(arc)
         r["arcs"] = ", ".join(found)
+        text = " ".join((r["title"], r["hook"], r["place"]))
+        hits = [w for w in SPECTACLE if w in text]
+        r["spectacle"] = f"후보 ({', '.join(h.strip() for h in hits[:3])})" if hits else ""
+
+
+def highlight(rows):
+    """묶음의 대표 훅: 시즌1(이목을 끄는 편) 중 숫자형·반전형 훅을 먼저, 없으면 시즌1 첫 편, 그다음 첫 편."""
+    for cond in (lambda r: r["season"] == 1 and r["hook_type"] in ("숫자형", "사실·반전형"),
+                 lambda r: r["season"] == 1, lambda r: True):
+        hit = [r for r in rows if cond(r)]
+        if hit:
+            return hit[0]["hook"]
+
+
+def span_label(rows):
+    """'창세기 37장 ~ 41장', 책이 바뀌면 '창세기 42장 ~ 출애굽기 5장'"""
+    first, last = rows[0], rows[-1]
+    a, b = first["chapter"], last["chapter"]
+    if a == b:
+        return a
+    return f"{a} ~ {b.replace(first['book']['name'] + ' ', '')}" if first["book"] is last["book"] else f"{a} ~ {b}"
+
+
+def long_title(name, rows):
+    """롱폼 훅형 제목: '요셉① 구덩이에서 왕궁으로: 형들이 내게 절하는 꿈을 꾸었다 | 창세기 37장 ~ 41장 성경 애니메이션'"""
+    return f"{name}: {highlight(rows)} | {span_label(rows)} 성경 애니메이션"
+
+
+def character_sheet(wb, f, header, body, title_block, rows, last, P, STATUS):
+    """인물 모아보기 롱폼 (벤치마킹: 'CBS 성경동화 다윗 이야기 모아보기' 300만 등 인물별 몰아보기)."""
+    from openpyxl.worksheet.datavalidation import DataValidation
+    ws = wb.create_sheet("인물_모아보기")
+    A = lambda c: f"'A타입_제작표'!${c}$2:${c}${last}"
+    title_block(ws, "인물 모아보기 롱폼",
+                "한 인물의 A편을 성경 순서로 이어 붙인 롱폼과 '잠잘 때 듣는' 오디오판. 그 인물의 모든 편이 공개된 다음 날 올림")
+    cols = ["순번", "인물", "구약/신약", "A 편수", "본문 범위", "제목안", "오디오판 제목안", "예상 길이(분)",
+            "공개 가능일", "대본", "영상", "업로드", "조회수"]
+    header(ws, 4, cols, [6, 10, 8, 7, 34, 70, 56, 9, 12, 8, 8, 8, 9])
+    k = 5
+    for arc, _, testament, *_ in ARCS:
+        # 이야기(장면형) 편만: 시편·서신서처럼 그 인물이 쓴 주제형 편은 모아보기에서 뺌
+        mine = [r for r in rows if arc in r["arcs"].split(", ") and r["kind"] == "장면"]
+        if len(mine) < 3:
+            continue
+        crit = f"{A('AK')},\"*{arc}*\",{A('K')},\"장면\""
+        vals = [k - 4, arc, testament, f"=COUNTIFS({crit})", span_label(mine),
+                f"{arc} 이야기 모아보기 | {highlight(mine)} | 성경 애니메이션",
+                f"잠잘 때 듣는 {arc} 이야기 | 성경 애니메이션 오디오판 (화면 어둡게)"]
+        for j, v in enumerate(vals, 1):
+            ws.cell(row=k, column=j, value=v)
+        ws.cell(row=k, column=8, value=(f"=ROUND((D{k}*{P['롱폼에 넣는 A 1편 길이(초)']}"
+                                        f"+{P['롱폼 인트로+아웃트로+연결(초)']})/60,0)"))
+        ws.cell(row=k, column=9, value=f"=_xlfn.MAXIFS({A('U')},{crit})+1").number_format = "yyyy-mm-dd"
+        for j in (10, 11, 12):
+            ws.cell(row=k, column=j, value="미착수")
+        k += 1
+    body(ws, 5, k - 1, len(cols), center_cols=(1, 2, 3, 4, 8, 9, 10, 11, 12, 13))
+    ws.freeze_panes = "C5"
+    dv = DataValidation(type="list", formula1=STATUS, allow_blank=True)
+    dv.add(f"J5:L{k - 1}")
+    ws.add_data_validation(dv)
+    return k - 5
 
 
 def challenge_sheet(wb, f, header, body, last, psa_n, P, start_default, end_default):
@@ -206,7 +275,7 @@ def playlist_sheet(wb, f, header, body, books, last, psa_n, n_long, n_b, psa_lon
         ("롱폼 · 시편", "롱폼", f"=COUNTA('시편_롱폼'!$B$2:$B${psa_long_n})", "시편_롱폼 시트", ""),
         ("1분성경 통독 챌린지", "캠페인", f"=COUNTA({A('B')})", "통독챌린지 시트", "교회·소그룹 단체 참여 안내 고정"),
     ]
-    for arc, _, _ in ARCS:
+    for arc, *_ in ARCS:
         items.append((f"인물 · {arc}", "인물", f"=COUNTIF({A('AK')},\"*{arc}*\")", "A타입_제작표 '인물 재생목록' 칸", "연속 이야기 몰아보기"))
     for bk in books:
         items.append((f"권별 · {bk['name']}", "권별", f"=COUNTIF({A('I')},\"{bk['name']}\")", "A타입_제작표 책", ""))

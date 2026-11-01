@@ -15,6 +15,8 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
+import extras  # noqa: E402  (같은 폴더: 바이럴·운영 시트)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "성경애니메이션_제작표.xlsx")
 
@@ -356,6 +358,7 @@ def build(books, bs, rows, groups, psalms, verify_problems=None):
         ("A타입_제작표", "숏폼 전체 798편: 시즌, 트랙 회차, 본문, 제목, 첫 3초 훅, 핵심 구절, 메시지, 인물, 배경, 교리·연출 주의, 연결 내레이션, 업로드일, 제작 상태"),
         ("롱폼_시즌별", "시즌 중 올릴 롱폼: 시즌·트랙별 묶음, 공개 예정일"),
         ("롱폼_통합본", "성경 순서 롱폼 84편: 그리스도 연결점, 핵심 교리"),
+        ("인물_모아보기", "인물별 이야기 모아보기 롱폼 22편과 잠잘 때 듣는 오디오판 제목 (모든 편 공개 다음 날)"),
         ("시편_시리즈", "시편 150편 전체(본편과 별도 제작): 핵심 구절, 메시지, 저자·표제, 업로드일"),
         ("시편_롱폼", "시편 시리즈 롱폼 15편"),
         ("통독챌린지", "날짜별 구약·신약·시편 본문 달력 (교회·소그룹 배포용)"),
@@ -388,9 +391,9 @@ def build(books, bs, rows, groups, psalms, verify_problems=None):
               "트랙키", "시즌 내 순서", "제목안 B (도입형)", "첫 컷 장면", "이어지는 이야기 (끊는 지점)",
               "도입 유형", "제작 완료 목표일", "사전 제작분", "인물 재생목록",
               "조회수", "시청 vs 넘김(%)", "평균 시청률(%)", "구독 증가", "사용한 제목안 (A/B)", "일자키",
-              "핵심 구절 본문 (개역한글)", "본문 확인 표시"]
+              "핵심 구절 본문 (개역한글)", "본문 확인 표시", "명장면 쇼츠 15~20초"]
     widths = [6, 8, 5, 6, 7, 10, 7, 8, 10, 16, 6, 20, 30, 12, 32, 22, 22, 34, 40, 40, 11,
-              5, 24, 8, 8, 8, 8, 16, 9, 7, 44, 36, 36, 9, 11, 14, 16, 9, 9, 9, 8, 9, 14, 60, 20]
+              5, 24, 8, 8, 8, 8, 16, 9, 7, 44, 36, 36, 9, 11, 14, 16, 9, 9, 9, 8, 9, 14, 60, 20, 18]
     header(wa, 1, a_cols, widths)
     for i, rw in enumerate(rows, 2):
         vals = [i - 1, rw["code"], rw["season"], rw["book"]["testament"]]
@@ -429,6 +432,7 @@ def build(books, bs, rows, groups, psalms, verify_problems=None):
         wa.cell(row=i, column=43, value=f"=D{i}&\"|\"&TEXT(U{i},\"yyyy-mm-dd\")")
         wa.cell(row=i, column=44, value=rw.get("kv_text", ""))
         wa.cell(row=i, column=45, value=rw.get("kv_flags", ""))
+        wa.cell(row=i, column=46, value=rw["spectacle"])
     body(wa, 2, last, len(a_cols), center_cols=(1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 14, 21, 22, 24, 25, 26, 27, 29, 30,
                                                 34, 35, 36, 38, 39, 40, 41, 42, 43))
     for i in range(2, last + 1):
@@ -465,8 +469,9 @@ def build(books, bs, rows, groups, psalms, verify_problems=None):
     wl = wb.create_sheet("롱폼_시즌별")
     l_cols = ["순번", "롱폼코드", "시즌", "트랙", "롱폼 제목", "포함 통합본 B", "본문 범위", "A 편수",
               "예상 길이(초)", "예상 길이(분)", "첫 회차", "마지막 회차",
-              "그리스도 연결점", "핵심 교리", "공개 예정일", "요일", "대본", "교리감수", "영상", "업로드", "비고"]
-    header(wl, 1, l_cols, [6, 9, 5, 6, 34, 16, 26, 7, 9, 9, 11, 11, 44, 32, 11, 5, 8, 8, 8, 8, 16])
+              "그리스도 연결점", "핵심 교리", "공개 예정일", "요일", "대본", "교리감수", "영상", "업로드", "비고",
+              "제목안 (훅형)"]
+    header(wl, 1, l_cols, [6, 9, 5, 6, 34, 16, 26, 7, 9, 9, 11, 11, 44, 32, 11, 5, 8, 8, 8, 8, 16, 70])
     for i, g in enumerate(groups, 2):
         first, lastr = g["rows"][0], g["rows"][-1]
         titles = [b["title"] for b in g["bs"]]
@@ -487,6 +492,7 @@ def build(books, bs, rows, groups, psalms, verify_problems=None):
         wl.cell(row=i, column=16, value=f"=CHOOSE(WEEKDAY(O{i},2),\"월\",\"화\",\"수\",\"목\",\"금\",\"토\",\"일\")")
         for j in range(17, 21):
             wl.cell(row=i, column=j, value="미착수")
+        wl.cell(row=i, column=22, value=extras.long_title(name, g["rows"]))
     body(wl, 2, n_long, len(l_cols), center_cols=(1, 2, 3, 4, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 20))
     for i, g in enumerate(groups, 2):
         if g["season"] == 1:
@@ -505,8 +511,8 @@ def build(books, bs, rows, groups, psalms, verify_problems=None):
     b_cols = ["순번", "B코드", "롱폼 제목", "포함 책", "본문 범위", "A 편수", "그중 시즌1",
               "예상 길이(초)", "예상 길이(분)", "첫 A코드", "마지막 A코드",
               "그리스도 연결점", "핵심 교리", "전체 주의", "모든 편 공개 완료일",
-              "대본", "교리감수", "영상", "업로드", "비고"]
-    header(wbs, 1, b_cols, [6, 7, 26, 18, 26, 7, 8, 9, 9, 9, 9, 40, 32, 30, 12, 8, 8, 8, 8, 16])
+              "대본", "교리감수", "영상", "업로드", "비고", "제목안 (훅형)"]
+    header(wbs, 1, b_cols, [6, 7, 26, 18, 26, 7, 8, 9, 9, 9, 9, 40, 32, 30, 12, 8, 8, 8, 8, 16, 70])
     for i, b in enumerate(bs, 2):
         mine = [x for x in rows if x["b"] is b]
         vals = [i - 1, b["code"], b["title"], " · ".join(b["books"]), span_text(mine[0], mine[-1])]
@@ -524,6 +530,7 @@ def build(books, bs, rows, groups, psalms, verify_problems=None):
         wbs.cell(row=i, column=15).number_format = "yyyy-mm-dd"
         for j in range(16, 20):
             wbs.cell(row=i, column=j, value="미착수")
+        wbs.cell(row=i, column=21, value=extras.long_title(b["title"], mine))
     body(wbs, 2, n_b, len(b_cols), center_cols=(1, 2, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19))
     wbs.freeze_panes = "D2"
     wbs.auto_filter.ref = f"A1:{get_column_letter(len(b_cols))}{n_b}"
@@ -568,10 +575,10 @@ def build(books, bs, rows, groups, psalms, verify_problems=None):
     psa.sheets(wb, psalms, f, header, body, P, STATUS, A)
 
     # ===== 8. 통독 챌린지 · 성과 기록 · 채널 재생목록 =====
-    import extras
     extras.challenge_sheet(wb, f, header, body, last, len(psalms) + 1, P, date(2027, 1, 4), date(2028, 6, 14))
     extras.kpi_sheet(wb, f, header, body, last, P, 80)
     extras.playlist_sheet(wb, f, header, body, books, last, len(psalms) + 1, n_long, n_b, len(psa.LONGS) + 1)
+    extras.character_sheet(wb, f, header, body, title_block, rows, last, P, STATUS)
 
     # ===== 8~ 참고 시트 =====
     from sheets_ref import characters, doctrine, templates, seasons, terms
@@ -717,7 +724,6 @@ if __name__ == "__main__":
     assign(rows)
     groups = long_groups(rows, bs)
     bridges(rows)
-    import extras
     extras.load_first_cuts(rows)
     extras.annotate(rows)
     import psalms as psa
