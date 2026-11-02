@@ -21,6 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "scripts"))
 import build_xlsx as bx  # noqa: E402  (서식 도구, 66권 정보 재사용)
 import verify_bible as vb  # noqa: E402  (역본 본문)
+from cats import CATS, assign as assign_cats  # noqa: E402  (고양이 캐릭터)
 
 OUT = os.path.join(HERE, "5분성경읽기_제작표.xlsx")
 TTS_DIR = os.path.join(HERE, "tts")
@@ -39,7 +40,7 @@ SLOTS = ["06:00", "08:00", "12:00", "15:00", "19:00", "21:00"]  # 하루 업로�
 SITUATIONS = ["새벽", "출근길", "점심", "오후", "퇴근길", "잠들기 전"]  # 시간대별 제목 앞 상황어 (벤치마킹: 상황형 제목)
 PART_MAX = 2 * 3600  # 책 전체듣기 묶음 한 편 최대 길이 (긴 책은 1부·2부…로 나눔)
 
-# 장르 → 화면 배경 (사용자 확정: 귀여운 고양이 배경). 같은 고양이 1~2마리를 '함께 읽는 친구'로 화면 한쪽에 고정.
+# 장르 → 화면 배경 (사용자 확정: 귀여운 고양이 배경). 고양이 여섯 마리(cats.py)를 '함께 읽는 친구'로 돌아가며 화면 한쪽에.
 # 성경 인물 분장·장면 연기 금지, 하나님 형상 없음, 자막 영역을 가리지 않게 작게, 움직임은 꼬리·숨쉬기·눈 깜빡임 정도
 BACKGROUNDS = {
     "율법서": "장막 앞 모래 언덕에 앉은 고양이, 저녁 하늘",
@@ -50,7 +51,7 @@ BACKGROUNDS = {
     "서신서": "등불 옆 펼친 두루마리 곁에 웅크린 고양이",
     "예언서": "별이 가득한 밤하늘 아래 꼬리를 감고 앉은 고양이",
 }
-CALM_SCENE = "차분한 장면: 등불 옆에 잠든 고양이 (장난치는 모습 금지)"
+CALM_SCENE = "차분한 장면: 등불 옆에 잠든 고양이 (장난치는 모습 금지)"  # '고양이' 자리에 그 편의 고양이 이름
 # 심판·전쟁·죽음이 많은 본문은 장난스러운 고양이가 가볍게 보이지 않도록 차분한 장면으로
 HEAVY_WORDS = ("죽이", "죽였", "죽임", "칼로", "칼날", "멸하", "멸망", "진노", "치시", "시체", "불사르", "도륙", "살륙", "피를")
 HEAVY_MIN = 6  # 한 편에 이만큼 이상 나오면 무거운 본문으로 봄
@@ -258,13 +259,24 @@ def load():
     for s in sorted(segs, key=lambda s: (s["day"], s["track"] != "구약", s["no"])):
         slot[s["day"]] = slot.get(s["day"], 0) + 1
         s["slot"] = slot[s["day"]]
+    assign_cats(segs)
     return books, segs
+
+
+def scene(s):
+    """그 편의 고양이 장면: 장르별 장면 또는 무거운 본문의 차분한 장면에 고양이 이름을 넣음."""
+    g = GENRE_BG[s["book"]["genre"]]
+    text = CALM_SCENE if s["heavy"] else BACKGROUNDS[g]
+    return f"{g}: " + text.replace("고양이", s["cat"]["name"], 1)
 
 
 def check(books, segs):
     problems = vb.check_project2(segs)
     if max(s["slot"] for s in segs) > len(SLOTS):
         problems.append(f"하루 편수가 업로드 시간대({len(SLOTS)}개)보다 많음")
+    order = sorted(segs, key=lambda s: (s["day"], s["slot"]))
+    if any(a["cat"] is b["cat"] for a, b in zip(order, order[1:])):
+        problems.append("같은 고양이가 연달아 나오는 업로드가 있음")
     for s in segs:
         if not s["whole_book"] and not LO <= s["sec"] <= HI:
             problems.append(f"{s['title']} 낭독 {s['sec']}초 (허용 범위 밖)")
@@ -353,9 +365,9 @@ def build(books, segs):
     cols = ["순번", "코드", "트랙", "트랙 회차", "일차", "업로드일", "요일", "하루 순서", "업로드 시간", "책", "본문 범위",
             "절 수", "장 수", "음절 수", "예상 낭독(초)", "예상 낭독", "영상 길이", "끊은 곳", "제목안", "해시태그",
             "설명란 문구", "본문 상태", "대조할 곳", "화면 배경", "TTS 대본 (개역한글)", "TTS 음성", "영상", "업로드",
-            "조회수", "평균 시청률(%)", "비고"]
+            "조회수", "평균 시청률(%)", "비고", "고양이"]
     header(wr, 1, cols, [6, 8, 6, 7, 6, 11, 5, 6, 8, 10, 30, 6, 6, 7, 8, 8, 8, 8, 44, 40, 44, 16, 22, 26, 60,
-                         8, 8, 8, 8, 9, 16])
+                         8, 8, 8, 8, 9, 16, 16])
     for i, s in enumerate(segs, 2):
         b = s["book"]
         _, flags = vb.text(b["abbr"], s["ref"], strip_heading=False)
@@ -364,7 +376,7 @@ def build(books, segs):
                 11: s["title"], 12: s["verses"], 13: s["chapters"],
                 14: s["syl"],
                 18: "책 전체" if s["whole_book"] else s["cut"], 22: status,
-                23: spots_text(b, s["ref"]) or ", ".join(sorted(flags - {vb.F_HEADING})), 24: f"{GENRE_BG[b['genre']]}: " + (CALM_SCENE if s["heavy"] else BACKGROUNDS[GENRE_BG[b['genre']]]),
+                23: spots_text(b, s["ref"]) or ", ".join(sorted(flags - {vb.F_HEADING})), 24: scene(s), 32: f"{s['cat']['name']} ({s['cat']['scarf']})",
                 25: s["tts"], 26: "미착수", 27: "미착수", 28: "미착수"}
         for j, val in vals.items():
             wr.cell(row=i, column=j, value=val)
@@ -524,14 +536,17 @@ def build(books, segs):
         ("일괄 생성", "python3 project2/build.py --tts 실행 시 project2/tts/ 에 편별 대본 텍스트(R0001_….txt) 생성", "대부분의 TTS 도구에 파일 단위로 넣기 쉬움"),
     ])
     r = section(wt, r, "3. 화면", 4)
-    r = table(wt, r, ["장르", "고양이 장면", "편수"],
-              [(k, d, f"=COUNTIF({R('X')},\"{k}: {d}\")") for k, d in BACKGROUNDS.items()]
-              + [("무거운 본문", CALM_SCENE, f"=COUNTIF({R('X')},\"*{CALM_SCENE}\")")])
+    r = table(wt, r, ["장르", "고양이 장면 ('고양이' 자리에 그 편의 고양이)", "편수 (차분한 장면 포함)"],
+              [(k, d, f"=COUNTIF({R('X')},\"{k}:*\")") for k, d in BACKGROUNDS.items()]
+              + [("무거운 본문", CALM_SCENE, f"=COUNTIF({R('X')},\"*등불 옆에 잠든*\")")])
+    r = table(wt, r, ["고양이", "모습", "표시", "성격·자세", "어울리는 분위기 (배정은 순서대로 돌림)", "편수", "AI 이미지 기준 설명 (매번 그대로 붙여 같은 모습 유지)"],
+              [(c["name"], c["look"], c["scarf"], c["mood"], c["fits"], f"=COUNTIF({R('AF')},\"{c['name']} *\")", c["prompt"])
+               for c in CATS])
     r = table(wt, r, ["항목", "기준", "비고"], [
         ("화면 비율", "1920×1080 (16:9). 세로판이 필요하면 1080×1920으로 같은 자막 배치", "5분은 쇼츠·릴스(최대 3분) 길이를 넘음"),
         ("자막", "현대적인 고딕 계열(예: Pretendard, 본고딕/Noto Sans KR), 굵게. 화면 아래쪽 2~4줄, 절 번호 작게 표시", "개역한글 원문 띄어쓰기 그대로. 상업 이용 무료 글꼴만"),
         ("배경음악", "잔잔한 저작권 무료 음원, 낭독보다 충분히 작게", "찬송가·CCM 사용 금지"),
-        ("배경 영상", "귀여운 고양이 배경(확정). 같은 고양이 1~2마리를 기준 이미지로 고정하고 장르별 장면 세트를 돌려 씀. 고양이는 화면 한쪽에 작게, 꼬리·숨쉬기·눈 깜빡임 정도만 움직임", "성경 인물 분장·장면 연기 금지, 하나님 형상 없음. 심판·전쟁 본문은 '차분한 장면'"),
+        ("배경 영상", "귀여운 고양이 배경(확정). 고양이 여섯 마리를 업로드 순서대로 돌려 바로 앞 편과 같은 고양이가 나오지 않게 함('고양이' 칸). 고양이마다 목도리 색과 AI 기준 설명을 고정해 같은 모습 유지. 묶음 영상 섬네일은 여러 마리 함께. 고양이는 화면 한쪽에 작게, 꼬리·숨쉬기·눈 깜빡임 정도만 움직임", "성경 인물 분장·장면 연기 금지, 하나님 형상 없음. 심판·전쟁 본문은 '차분한 장면'"),
     ])
     r = section(wt, r, "4. 저작권·교리 원칙", 4)
     table(wt, r, ["원칙", "내용"], [
